@@ -73,6 +73,7 @@ class TerminalModel extends ChangeNotifier {
   String? pttDeviceStatus;
   bool pttDeviceConnected = false;
   int? _headsetVolume;
+  bool _swallowRelease = false;
 
   bool get transmitting => myTxCallId != null;
   int? get selectedGssi => settings.selectedGssi;
@@ -114,9 +115,20 @@ class TerminalModel extends ChangeNotifier {
   void _onPttInput(PttInputEvent e) {
     switch (e) {
       case PttPressed():
-        if (link == LinkState.online) pttDown();
+        if (link != LinkState.online) return;
+        // Ringing incoming call: the press answers it instead of keying up.
+        if (privateCall?.state == 'ringing') {
+          _swallowRelease = true;
+          answer();
+          return;
+        }
+        pttDown();
         return;
       case PttReleased():
+        if (_swallowRelease) {
+          _swallowRelease = false;
+          return;
+        }
         pttUp();
         return;
       case PttVolume(:final level, :final max):
