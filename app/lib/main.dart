@@ -23,7 +23,12 @@ Future<void> main() async {
   final model = TerminalModel(settings);
   runApp(ChangeNotifierProvider.value(value: model, child: const TetraApp()));
   // Ask for permissions once the UI is up (asking before runApp can leave a black screen).
-  await [Permission.microphone, Permission.notification, Permission.locationWhenInUse].request();
+  await [
+    Permission.microphone,
+    Permission.notification,
+    Permission.locationWhenInUse,
+    if (settings.headsetEnabled && Platform.isAndroid) Permission.bluetoothConnect,
+  ].request();
   try {
     await model.start();
   } catch (e) {

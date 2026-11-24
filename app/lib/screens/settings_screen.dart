@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../model/settings.dart';
@@ -86,6 +89,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
         ),
+        if (Platform.isAndroid) ...[
+          const Divider(),
+          Text('Bluetooth PTT headset', style: Theme.of(context).textTheme.titleMedium),
+          SwitchListTile(
+            title: const Text('Use Savox BTH-101 PTT'),
+            subtitle: Text(m.pttDeviceStatus ?? 'Pair the headset in Android Bluetooth settings first (PIN 0000)'),
+            value: s.headsetEnabled,
+            onChanged: (v) async {
+              if (v) await Permission.bluetoothConnect.request();
+              setState(() => s.headsetEnabled = v);
+            },
+          ),
+          if (s.headsetEnabled)
+            _text('Headset address (optional)', s.headsetAddress, (v) => s.headsetAddress = v.trim(),
+                hint: '00:15:BE:0F:12:26 — empty = first paired "Savox…"'),
+        ],
         const Divider(),
         Text('Location (LIP)', style: Theme.of(context).textTheme.titleMedium),
         SwitchListTile(title: const Text('Send location reports'), value: s.lipEnabled, onChanged: (v) => setState(() => s.lipEnabled = v)),

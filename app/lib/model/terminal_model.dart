@@ -7,6 +7,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
 import '../services/location_service.dart';
+import '../services/ptt_input.dart';
 import '../src/rust/api.dart';
 import 'settings.dart';
 
@@ -66,6 +67,13 @@ class TerminalModel extends ChangeNotifier {
   int _nextLocalId = 1;
   String? toast;
 
+  PttInput? _pttInput;
+  StreamSubscription<PttInputEvent>? _pttSub;
+  /// Hardware PTT device status for the UI (null = none configured).
+  String? pttDeviceStatus;
+  bool pttDeviceConnected = false;
+  int? _headsetVolume;
+
   bool get transmitting => myTxCallId != null;
   int? get selectedGssi => settings.selectedGssi;
 
@@ -75,7 +83,52 @@ class TerminalModel extends ChangeNotifier {
   Future<void> start() async {
     await audio.init();
     audio.micGainDb = settings.micGainDb;
+    await _startPttInput();
     if (settings.isConfigured) await connect();
+  }
+
+  Future<void> _startPttInput() async {
+    await _stopPttInput();
+    if (!settings.headsetEnabled) return;
+    final input = BluetoothHeadsetPtt(address: settings.headsetAddress);
+    _pttInput = input;
+    pttDeviceStatus = 'Headset connecting…';
+    _pttSub = input.events.listen(_onPttInput);
+    await input.start();
+    notifyListeners();
+  }
+
+  Future<void> _stopPttInput() async {
+    await _pttSub?.cancel();
+    _pttSub = null;
+    final input = _pttInput;
+    _pttInput = null;
+    if (input != null) {
+      await input.stop();
+      if (transmitting || _releaseTimer != null) pttUp();
+    }
+    pttDeviceStatus = null;
+    pttDeviceConnected = false;
+  }
+
+  void _onPttInput(PttInputEvent e) {
+    switch (e) {
+      case PttPressed():
+        if (link == LinkState.online) pttDown();
+        return;
+      case PttReleased():
+        pttUp();
+        return;
+      case PttVolume(:final level, :final max):
+        if (_headsetVolume != null && _headsetVolume != level) toast = 'Volume $level/$max';
+        _headsetVolume = level;
+      case PttDeviceStatus(:final connected, :final text):
+        // Announce changes, not every retry.
+        if (connected != pttDeviceConnected) toast = text;
+        pttDeviceConnected = connected;
+        pttDeviceStatus = text;
+    }
+    notifyListeners();
   }
 
   Future<void> connect() async {
@@ -279,11 +332,13 @@ class TerminalModel extends ChangeNotifier {
     settings = s;
     audio.micGainDb = s.micGainDb;
     await s.save();
+    await _startPttInput();
     await connect();
   }
 
   @override
   void dispose() {
+    _stopPttInput();
     disconnect();
     audio.dispose();
     super.dispose();

@@ -39,6 +39,11 @@ class Settings {
   int lipIntervalSeconds = 60;
   bool lipOnPtt = true;
 
+  // Bluetooth PTT headset (Savox BTH-101)
+  bool headsetEnabled = false;
+  /// MAC like 00:15:BE:0F:12:26; empty = first paired "Savox…" device.
+  String headsetAddress = '';
+
   bool get isConfigured => issi > 0 && serverUrl.isNotEmpty && username.isNotEmpty;
 
   List<int> get affiliatedGroups => talkgroups.where((t) => t.scan || t.gssi == selectedGssi).map((t) => t.gssi).toList();
@@ -67,7 +72,9 @@ class Settings {
       ..lipEnabled = j['lipEnabled'] ?? false
       ..lipDestination = j['lipDestination'] ?? 0
       ..lipIntervalSeconds = j['lipIntervalSeconds'] ?? 60
-      ..lipOnPtt = j['lipOnPtt'] ?? true;
+      ..lipOnPtt = j['lipOnPtt'] ?? true
+      ..headsetEnabled = j['headsetEnabled'] ?? false
+      ..headsetAddress = j['headsetAddress'] ?? '';
     return s;
   }
 
@@ -93,6 +100,8 @@ class Settings {
         'lipDestination': lipDestination,
         'lipIntervalSeconds': lipIntervalSeconds,
         'lipOnPtt': lipOnPtt,
+        'headsetEnabled': headsetEnabled,
+        'headsetAddress': headsetAddress,
       }),
     );
   }

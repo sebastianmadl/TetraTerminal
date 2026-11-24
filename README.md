@@ -16,6 +16,7 @@ to [brew-server](https://github.com/ysamouhos/brew-server) over the Brew
 | LIP short location reports via SDS (send and receive) | ✅ live-tested |
 | TETRA ACELP voice (ETSI EN 300 395-2), STE framing | ✅ live-tested |
 | Talkgroup list with scan, DTMF in private calls | ✅ in app |
+| Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | 🧪 untested on device |
 
 "Live-tested" means two instances of the client exchanged it through a real
 brew-server built from your repo, with Digest auth on (8/8 scenarios, no
@@ -34,6 +35,7 @@ tetra_core/      Rust: everything protocol, call and codec related (shared by bo
   src/api.rs        Flat API for flutter_rust_bridge
   tests/            Unit tests + end-to-end test against a mock Brew server
   examples/live_two_terminals.rs   Live test against a real brew-server
+app/packages/headset_ptt/  Android plugin: BT headset PTT over SPP, SCO routing
 app/             Flutter UI (Talkgroups + PTT, Calls, Messages, Settings)
 ```
 

@@ -1,0 +1,19 @@
+name: headset_ptt
+description: Bluetooth PTT headset input (Savox BTH-101 style "+PTT=P/R" over SPP) for TETRA Terminal.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.tetra.headset_ptt
+        pluginClass: HeadsetPttPlugin
