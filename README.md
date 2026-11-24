@@ -16,7 +16,7 @@ to [brew-server](https://github.com/ysamouhos/brew-server) over the Brew
 | LIP short location reports via SDS (send and receive) | ✅ live-tested |
 | TETRA ACELP voice (ETSI EN 300 395-2), STE framing | ✅ live-tested |
 | Talkgroup list with scan, DTMF in private calls | ✅ in app |
-| Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | 🧪 untested on device |
+| Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | ✅ live-tested |
 
 "Live-tested" means two instances of the client exchanged it through a real
 brew-server built from your repo, with Digest auth on (8/8 scenarios, no
