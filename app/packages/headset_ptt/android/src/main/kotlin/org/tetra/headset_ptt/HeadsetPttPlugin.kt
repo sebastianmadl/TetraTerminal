@@ -92,7 +92,8 @@ class HeadsetPttPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCh
 
     @SuppressLint("MissingPermission")
     private fun open(d: BluetoothDevice, channel: Int): BluetoothSocket {
-        adapter()?.cancelDiscovery()
+        // Needs BLUETOOTH_SCAN on Android 12+; we never scan, so skip it if not granted.
+        try { adapter()?.cancelDiscovery() } catch (_: SecurityException) {}
         // Undocumented but long-standing: the SPP service is not in SDP.
         try {
             val m = d.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
