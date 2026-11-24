@@ -32,13 +32,13 @@ class HeadsetPttChannel {
   static bool get supported => Platform.isAndroid;
 
   static final Stream<HeadsetEvent> events = supported
-      ? _e.receiveBroadcastStream().map((raw) {
+      ? _e.receiveBroadcastStream().map<HeadsetEvent>((raw) {
           final m = Map<String, dynamic>.from(raw as Map);
           return switch (m['type']) {
             'ptt' => HeadsetPtt(m['pressed'] as bool),
             'volume' => HeadsetVolume(m['level'] as int, m['max'] as int),
             _ => HeadsetLinkState(m['state'] as String, m['detail'] as String?),
-          } as HeadsetEvent;
+          };
         })
       : const Stream.empty();
 
