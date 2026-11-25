@@ -9,6 +9,7 @@ import 'package:record/record.dart' hide IosAudioCategory;
 import 'package:tetra_mic/tetra_mic.dart';
 
 import 'tx_level.dart';
+import 'upsampler.dart';
 
 /// 8 kHz mono PCM16 microphone capture and speaker playback.
 ///
@@ -18,6 +19,11 @@ import 'tx_level.dart';
 /// touching the rest of the app.
 class AudioIO {
   static const sampleRate = 8000;
+
+  /// iOS plays at 48 kHz, converted here (see [Upsampler]); elsewhere the
+  /// player takes the 8 kHz audio as it is.
+  final Upsampler? _up = _isApple ? Upsampler() : null;
+  int get _outRate => sampleRate * (_up?.factor ?? 1);
 
   /// The mic is captured at 16 kHz and decimated here with a proper low-pass.
   /// Asking Android for 8 kHz directly makes many devices resample badly
@@ -56,7 +62,7 @@ class AudioIO {
     // essential: without it the plugin silently drops every frame fed while the
     // app is not active (screen locked or in the background).
     await FlutterPcmSound.setup(
-      sampleRate: sampleRate,
+      sampleRate: _outRate,
       channelCount: 1,
       iosAudioCategory: IosAudioCategory.playAndRecord,
       iosAllowBackgroundAudio: true,
@@ -90,10 +96,10 @@ class AudioIO {
     }
     await _applyRoute();
     // ~120 ms of headroom: two Brew frames of jitter.
-    await FlutterPcmSound.setFeedThreshold(sampleRate ~/ 8);
+    await FlutterPcmSound.setFeedThreshold(_outRate ~/ 8);
     // The plugin reports how much is really queued; keeps our estimate honest.
     FlutterPcmSound.setFeedCallback((remaining) {
-      _queue.sync(remaining);
+      _queue.sync(remaining ~/ (_up?.factor ?? 1));
       if (_keepAlive != null) _feedSilenceIfLow();
     });
     _playerReady = true;
@@ -251,6 +257,8 @@ class AudioIO {
 
   void _feed(Int16List pcm) {
     _queue.fed(pcm.length);
+    final up = _up;
+    if (up != null) pcm = up.process(pcm);
     FlutterPcmSound.feed(PcmArrayInt16.fromList(pcm));
   }
 
