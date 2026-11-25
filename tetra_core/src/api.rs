@@ -31,6 +31,23 @@ pub struct TerminalConfig {
     pub default_priority: u8,
     pub allow_preemption: bool,
     pub insecure_tls: bool,
+    /// Multi Network: home network MCC/MNC; 0/0 = the server's own network.
+    pub home_mcc: u16,
+    pub home_mnc: u16,
+    /// Groups of other networks than the home network.
+    pub group_networks: Vec<GroupNetwork>,
+}
+
+/// A group that belongs to another network (Multi Network).
+#[derive(Debug, Clone)]
+pub struct GroupNetwork {
+    pub gssi: u32,
+    pub mcc: u16,
+    pub mnc: u16,
+}
+
+fn group_network_map(v: Vec<GroupNetwork>) -> std::collections::HashMap<u32, crate::client::Mni> {
+    v.into_iter().map(|g| (g.gssi, crate::client::Mni { mcc: g.mcc, mnc: g.mnc })).collect()
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +97,10 @@ pub enum AppEvent {
     LocationReceived { from: u32, location: LocationInfo, reason: Option<u8> },
     SubscriberProfiles { json: String },
     ServerError { kind: u8 },
+    /// Brew extensions the server offered (e.g. "mni").
+    Extensions { offered: Vec<String> },
+    /// Multi Network: `{"this":{"mcc","mnc"},"networks":[{"mcc","mnc","name","up"}]}`.
+    Networks { json: String },
 }
 
 fn private_info(c: &crate::calls::PrivateCall) -> PrivateCallInfo {
@@ -139,6 +160,8 @@ fn convert(e: ClientEvent) -> AppEvent {
         },
         ClientEvent::SubscriberProfiles { json } => AppEvent::SubscriberProfiles { json },
         ClientEvent::ServerError { kind } => AppEvent::ServerError { kind },
+        ClientEvent::Extensions { offered } => AppEvent::Extensions { offered },
+        ClientEvent::Networks { json } => AppEvent::Networks { json },
         ClientEvent::Call(c) => match c {
             CallEvent::GroupTxStarted { gssi, talker, talker_name, priority, id } => AppEvent::GroupTxStarted {
                 gssi,
@@ -181,6 +204,9 @@ impl TetraClient {
             selected_group: config.selected_group,
             default_priority: config.default_priority.min(15),
             allow_preemption: config.allow_preemption,
+            home_network: ((config.home_mcc, config.home_mnc) != (0, 0))
+                .then_some(crate::client::Mni { mcc: config.home_mcc, mnc: config.home_mnc }),
+            group_networks: group_network_map(config.group_networks),
         };
         let (handle, events) = runtime().block_on(async { client::spawn(cfg) });
         TetraClient { handle, events: Arc::new(Mutex::new(events)) }
@@ -210,6 +236,10 @@ impl TetraClient {
     }
     pub fn select_group(&self, gssi: u32) {
         self.handle.send(Command::SelectGroup(gssi));
+    }
+    /// Call before [`Self::set_groups`] when the networks of groups change.
+    pub fn set_group_networks(&self, networks: Vec<GroupNetwork>) {
+        self.handle.send(Command::SetGroupNetworks(group_network_map(networks)));
     }
     pub fn set_groups(&self, groups: Vec<u32>, selected: Option<u32>) {
         self.handle.send(Command::SetGroups { groups, selected });

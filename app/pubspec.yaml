@@ -1,7 +1,7 @@
 name: tetra_terminal
 description: TETRA Brew terminal for Android and iOS (group/private calls, SDS, LIP).
 publish_to: none
-version: 1.3.0+1
+version: 1.4.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -18,6 +18,10 @@ dependencies:
   # App
   provider: ^6.1.2
   shared_preferences: ^2.3.2
+  # Password in the iOS Keychain / Android Keystore
+  flutter_secure_storage: ^9.2.2
+  # SF Symbols-style icons on iOS
+  cupertino_icons: ^1.0.8
   permission_handler: ^11.3.1
   # Audio: 8 kHz mono PCM16 in/out (see lib/services/audio_io.dart)
   record: ^6.0.0

@@ -1,8 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
@@ -14,8 +15,10 @@ import 'settings.dart';
 enum LinkState { offline, connecting, online }
 
 class GroupCallState {
-  GroupCallState(this.gssi, this.talker, this.talkerName, this.priority, this.callId);
+  GroupCallState(this.gssi, this.talker, this.talkerName, this.priority, this.callId, {DateTime? since}) : since = since ?? DateTime.now();
   final int gssi;
+  /// When the talker started (for the "talking for 0:12" timer).
+  final DateTime since;
   final int talker;
   final String? talkerName;
   final int priority;
@@ -37,6 +40,18 @@ class ChatMessage {
   final DateTime time;
 }
 
+/// A network the server links to (Multi Network, `SERVICE_NETWORKS`).
+class LinkedNetwork {
+  const LinkedNetwork(this.mcc, this.mnc, this.name, {this.up = true, this.own = false});
+  final int mcc;
+  final int mnc;
+  final String name;
+  final bool up;
+  /// The server's own network.
+  final bool own;
+  String get mni => '$mcc-$mnc';
+}
+
 class RemoteLocation {
   RemoteLocation(this.issi, this.location, this.reason) : time = DateTime.now();
   final int issi;
@@ -46,7 +61,7 @@ class RemoteLocation {
 }
 
 /// App-wide state over the Rust `TetraClient`.
-class TerminalModel extends ChangeNotifier {
+class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   TerminalModel(this.settings);
 
   Settings settings;
@@ -57,9 +72,25 @@ class TerminalModel extends ChangeNotifier {
   LinkState link = LinkState.offline;
   String? lastError;
 
+  /// The user wants to be online (connected and not disconnected by hand).
+  bool _wantOnline = false;
+
+  /// Brew extensions the server offered on the current connection.
+  List<String> extensions = const [];
+  bool get multiNetwork => extensions.contains('mni');
+
+  /// Multi Network: the server's own network first, then the linked ones.
+  List<LinkedNetwork> networks = const [];
+
+  String networkName(int mcc, int mnc) {
+    if (mcc == 0 && mnc == 0) return 'Home network';
+    return networks.where((n) => n.mcc == mcc && n.mnc == mnc).firstOrNull?.name ?? '$mcc-$mnc';
+  }
+
   /// Active transmissions per talkgroup.
   final Map<int, GroupCallState> groupActivity = {};
   String? myTxCallId;
+  DateTime? myTxSince;
   PrivateCallInfo? privateCall;
   String? focusCallId;
   final List<ChatMessage> messages = [];
@@ -82,6 +113,7 @@ class TerminalModel extends ChangeNotifier {
   GroupCallState? get heard => groupActivity.values.where((g) => g.callId == focusCallId).firstOrNull;
 
   Future<void> start() async {
+    WidgetsBinding.instance.addObserver(this);
     await audio.init();
     audio.micGainDb = settings.micGainDb;
     await _startPttInput();
@@ -143,8 +175,32 @@ class TerminalModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// iOS suspends the app in the background unless audio keeps it alive; the
+  /// socket then dies quietly. In the background we keep the audio session
+  /// playing (if enabled); back in front we reconnect if the link was lost.
+  /// When the app is closed for good: deregister.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        audio.keepAlive(false);
+        if (_wantOnline && link == LinkState.offline && settings.isConfigured) connect();
+      case AppLifecycleState.paused:
+        // Stay reachable in the background while connected (see AudioIO.keepAlive).
+        audio.keepAlive(_wantOnline && settings.backgroundAudio);
+      case AppLifecycleState.detached:
+        if (_client != null) _client!.shutdown();
+      default:
+        break;
+    }
+  }
+
+  List<GroupNetwork> get _groupNetworks =>
+      [for (final t in settings.groupsOfOtherNetworks) GroupNetwork(gssi: t.gssi, mcc: t.mcc, mnc: t.mnc)];
+
   Future<void> connect() async {
     await disconnect();
+    _wantOnline = true;
     final c = await TetraClient.connect(
       config: TerminalConfig(
         serverUrl: settings.serverUrl,
@@ -157,6 +213,9 @@ class TerminalModel extends ChangeNotifier {
         defaultPriority: settings.defaultPriority,
         allowPreemption: settings.allowPreemption,
         insecureTls: settings.insecureTls,
+        homeMcc: settings.homeMcc,
+        homeMnc: settings.homeMnc,
+        groupNetworks: _groupNetworks,
       ),
     );
     _client = c;
@@ -165,6 +224,12 @@ class TerminalModel extends ChangeNotifier {
       await location.start(Duration(seconds: settings.lipIntervalSeconds));
     }
     await WakelockPlus.enable();
+  }
+
+  /// Disconnect by hand: stays offline until connected again.
+  Future<void> goOffline() async {
+    _wantOnline = false;
+    await disconnect();
   }
 
   Future<void> disconnect() async {
@@ -209,8 +274,11 @@ class TerminalModel extends ChangeNotifier {
         if (groupActivity[gssi]?.callId == callId) groupActivity.remove(gssi);
       case AppEvent_TxGranted(:final callId):
         myTxCallId = callId;
+        myTxSince = DateTime.now();
+        HapticFeedback.heavyImpact();
         _startMic();
       case AppEvent_TxDenied(:final reason):
+        HapticFeedback.vibrate();
         toast = 'PTT denied: $reason';
       case AppEvent_TxEnded(:final callId, :final preempted):
         if (myTxCallId == callId) myTxCallId = null;
@@ -243,8 +311,16 @@ class TerminalModel extends ChangeNotifier {
         }
       case AppEvent_LocationReceived(:final from, :final location, :final reason):
         locations[from] = RemoteLocation(from, location, reason);
+      case AppEvent_ServerError(:final kind):
+        toast = kind == 1
+            ? 'Not allowed by the server (group blocked or receive only)'
+            : 'The server could not read a message from this app';
+      case AppEvent_Extensions(:final offered):
+        extensions = offered;
+        if (!multiNetwork) networks = const [];
+      case AppEvent_Networks(:final json):
+        networks = parseNetworks(json);
       case AppEvent_SubscriberProfiles():
-      case AppEvent_ServerError():
         break;
     }
     notifyListeners();
@@ -314,6 +390,7 @@ class TerminalModel extends ChangeNotifier {
     }
     settings.selectedGssi ??= settings.talkgroups.firstOrNull?.gssi;
     await settings.save();
+    await _client?.setGroupNetworks(networks: _groupNetworks);
     await _client?.setGroups(groups: Uint32List.fromList(settings.affiliatedGroups), selected: settings.selectedGssi);
     notifyListeners();
   }
@@ -340,6 +417,55 @@ class TerminalModel extends ChangeNotifier {
 
   void sendLocationNow() => location.sendNow(LipReason.user);
 
+  /// Switches to another connection profile and connects with it.
+  Future<void> switchProfile(String id) async {
+    if (id == settings.activeId) return;
+    settings.activeId = id;
+    networks = const [];
+    extensions = const [];
+    messages.clear();
+    locations.clear();
+    await settings.save();
+    if (settings.isConfigured) {
+      await connect();
+    } else {
+      await goOffline();
+    }
+    notifyListeners();
+  }
+
+  /// Adds or updates a profile (from the edit sheet). Reconnects when the
+  /// active profile changed.
+  Future<void> saveProfile(ConnectionProfile p) async {
+    final i = settings.profiles.indexWhere((x) => x.id == p.id);
+    if (i < 0) {
+      settings.profiles.add(p);
+    } else {
+      settings.profiles[i] = p;
+    }
+    await settings.save();
+    if (p.id == settings.activeId && settings.isConfigured) await connect();
+    notifyListeners();
+  }
+
+  Future<void> deleteProfile(ConnectionProfile p) async {
+    final wasActive = p.id == settings.activeId;
+    await settings.removeProfile(p);
+    await settings.save();
+    if (wasActive) {
+      networks = const [];
+      settings.isConfigured ? await connect() : await goOffline();
+    }
+    notifyListeners();
+  }
+
+  /// Light, dark or follow the system; applies at once.
+  Future<void> setAppearance(String v) async {
+    settings.appearance = v;
+    notifyListeners();
+    await settings.save();
+  }
+
   Future<void> applySettings(Settings s) async {
     settings = s;
     audio.micGainDb = s.micGainDb;
@@ -350,9 +476,25 @@ class TerminalModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopPttInput();
     disconnect();
     audio.dispose();
     super.dispose();
+  }
+}
+
+/// `SERVICE_NETWORKS` JSON → the server's own network first, then the linked ones.
+List<LinkedNetwork> parseNetworks(String json) {
+  try {
+    final j = jsonDecode(json) as Map<String, dynamic>;
+    final own = j['this'] as Map<String, dynamic>?;
+    return [
+      if (own != null) LinkedNetwork(own['mcc'] as int? ?? 0, own['mnc'] as int? ?? 0, 'This server', own: true),
+      for (final n in (j['networks'] as List? ?? []).cast<Map<String, dynamic>>())
+        LinkedNetwork(n['mcc'] as int? ?? 0, n['mnc'] as int? ?? 0, n['name'] as String? ?? '?', up: n['up'] as bool? ?? false),
+    ];
+  } catch (_) {
+    return const [];
   }
 }

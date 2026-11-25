@@ -44,6 +44,8 @@ fn terminal(url: &str, cred: &str, gssi: u32, name: &str) -> (u32, ClientHandle,
         selected_group: Some(gssi),
         default_priority: 1,
         allow_preemption: true,
+        home_network: None,
+        group_networks: Default::default(),
     });
     (issi, h, ev)
 }

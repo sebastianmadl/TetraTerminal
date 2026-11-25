@@ -6,7 +6,8 @@ use futures_util::{SinkExt, StreamExt};
 use md5::{Digest, Md5};
 use std::time::Duration;
 use tetra_core::calls::CallEvent;
-use tetra_core::client::{self, ClientConfig, ClientEvent, Command, MessageStatus};
+use std::collections::HashMap;
+use tetra_core::client::{self, ClientConfig, ClientEvent, Command, MessageStatus, Mni};
 use tetra_core::codec::VoiceEncoder;
 use tetra_core::protocol::{self as p, CallPayload, CircularCall, GroupTransmission, Message};
 use tetra_core::sds::{self, IncomingSds, LipReason, Location};
@@ -47,6 +48,11 @@ async fn read_request(s: &mut tokio::net::TcpStream) -> String {
 
 /// Runs discovery on the first two connections and returns the WebSocket.
 async fn accept_terminal(l: &TcpListener) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
+    accept_terminal_offering(l, None).await
+}
+
+/// Same, with `X-Brew-Extensions` on the 101 (brew-server with Multi Network on).
+async fn accept_terminal_offering(l: &TcpListener, offer: Option<&'static str>) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
     // 1) unauthenticated discovery → challenge
     let (mut s, _) = l.accept().await.unwrap();
     let req = read_request(&mut s).await;
@@ -70,6 +76,9 @@ async fn accept_terminal(l: &TcpListener) -> tokio_tungstenite::WebSocketStream<
         assert_eq!(r.uri().path(), "/brew/session/tok42");
         assert_eq!(r.headers()["Sec-WebSocket-Protocol"], "brew");
         resp.headers_mut().insert("Sec-WebSocket-Protocol", "brew".parse().unwrap());
+        if let Some(o) = offer {
+            resp.headers_mut().insert("X-Brew-Extensions", o.parse().unwrap());
+        }
         Ok(resp)
     })
     .await
@@ -117,12 +126,15 @@ async fn full_terminal_session() {
         selected_group: Some(TG),
         default_priority: 1,
         allow_preemption: true,
+        home_network: Some(Mni { mcc: 901, mnc: 1638 }),
+        group_networks: HashMap::from([(92, Mni { mcc: 901, mnc: 9999 })]),
     };
     let (h, mut ev) = client::spawn(cfg);
     let mut ws = accept_terminal(&l).await;
     wait_for(&mut ev, |e| *e == ClientEvent::Connected).await;
 
-    // Registration then affiliation.
+    // Registration then affiliation. No `mni` offered (TetraPack): no
+    // network messages, although networks are configured.
     assert!(matches!(recv_msg(&mut ws).await, Message::Subscriber { kind: p::SUB_REGISTER, issi: ME, .. }));
     let Message::Subscriber { kind: p::SUB_AFFILIATE, groups, .. } = recv_msg(&mut ws).await else { panic!() };
     assert_eq!(groups, vec![TG, 92]);
@@ -224,4 +236,63 @@ async fn full_terminal_session() {
     // ── Clean shutdown deregisters ──
     h.send(Command::Shutdown);
     assert!(matches!(recv_msg(&mut ws).await, Message::Subscriber { kind: p::SUB_DEREGISTER, .. }));
+}
+
+fn json(m: Message, kind: u8) -> serde_json::Value {
+    match m {
+        Message::Service { kind: k, json } if k == kind => serde_json::from_str(&json).unwrap(),
+        other => panic!("expected service 0x{kind:02x}, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn multi_network_when_the_server_offers_mni() {
+    let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = l.local_addr().unwrap().port();
+    let cfg = ClientConfig {
+        endpoint: Endpoint {
+            url: format!("http://127.0.0.1:{port}/brew"),
+            username: ME.to_string(),
+            password: "pw".into(),
+            user_agent: "TetraBrewTerminal/test".into(),
+            insecure_tls: false,
+        },
+        issi: ME,
+        name: None,
+        groups: vec![TG, 2324],
+        selected_group: Some(2324),
+        default_priority: 1,
+        allow_preemption: true,
+        home_network: None,
+        group_networks: HashMap::from([(2324, Mni { mcc: 901, mnc: 1638 })]),
+    };
+    let (h, mut ev) = client::spawn(cfg);
+    let mut ws = accept_terminal_offering(&l, Some("dmo-position, mni")).await;
+    wait_for(&mut ev, |e| matches!(e, ClientEvent::Extensions { offered } if offered.iter().any(|x| x == "mni"))).await;
+
+    // Home network first (0/0 = the server's own), then register, the group of
+    // the linked network, affiliate.
+    let v = json(recv_msg(&mut ws).await, p::SERVICE_MS_NETWORK);
+    assert_eq!((v["issi"].as_u64(), v["mcc"].as_u64(), v["mnc"].as_u64()), (Some(ME as u64), Some(0), Some(0)));
+    assert!(matches!(recv_msg(&mut ws).await, Message::Subscriber { kind: p::SUB_REGISTER, issi: ME, .. }));
+    let v = json(recv_msg(&mut ws).await, p::SERVICE_GROUP_NETWORK);
+    assert_eq!(v["groups"], serde_json::json!([{ "gssi": 2324, "mcc": 901, "mnc": 1638 }]));
+    let Message::Subscriber { kind: p::SUB_AFFILIATE, groups, .. } = recv_msg(&mut ws).await else { panic!() };
+    assert_eq!(groups, vec![TG, 2324]);
+
+    // The server's network list reaches the app.
+    send(&mut ws, p::build_service(p::SERVICE_NETWORKS, r#"{"this":{"mcc":901,"mnc":9999},"networks":[{"mcc":901,"mnc":1638,"name":"TP","up":true}]}"#)).await;
+    wait_for(&mut ev, |e| matches!(e, ClientEvent::Networks { json } if json.contains("\"TP\""))).await;
+
+    // Talking on the linked network's group: its network before the GROUP_TX.
+    h.send(Command::Ptt { pressed: true, group: Some(2324), emergency: false });
+    let v = json(recv_msg(&mut ws).await, p::SERVICE_CALL_NETWORK);
+    assert_eq!(v["group"], serde_json::json!({ "gssi": 2324, "mcc": 901, "mnc": 1638 }));
+    let Message::CallControl { state: p::CALL_GROUP_TX, id, payload: CallPayload::Group(g) } = recv_msg(&mut ws).await else { panic!() };
+    assert_eq!(g.destination, 2324);
+    assert_eq!(v["uuid"].as_str(), Some(id.to_string().as_str()));
+
+    // A group of the home network carries no note.
+    h.send(Command::Ptt { pressed: false, group: None, emergency: false });
+    h.send(Command::Shutdown);
 }

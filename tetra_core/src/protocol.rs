@@ -45,6 +45,15 @@ pub const ERROR_RESTRICTED: u8 = 1;
 
 pub const SERVICE_QUERY_SUBSCRIBERS: u8 = 1;
 pub const SERVICE_SUBSCRIBER_PROFILES: u8 = 2;
+/// Multi Network (brew-server extension `mni`, docs/Brew-Extensions.md 12b).
+/// Sent and expected only when the server offers `mni` in `X-Brew-Extensions`.
+pub const SERVICE_NETWORKS: u8 = 0x20;
+pub const SERVICE_MS_NETWORK: u8 = 0x21;
+pub const SERVICE_GROUP_NETWORK: u8 = 0x22;
+pub const SERVICE_CALL_NETWORK: u8 = 0x23;
+
+/// Extension name in `X-Brew-Extensions`.
+pub const EXT_MNI: &str = "mni";
 
 /// Disconnect causes, ETSI EN 300 392-2 clause 14.8.18 (subset used here).
 pub mod cause {

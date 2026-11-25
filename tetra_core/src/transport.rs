@@ -210,8 +210,15 @@ pub fn normalize_url(raw: &str) -> Result<Url, ConnectError> {
     Ok(url)
 }
 
-/// Discovery + authentication + WebSocket upgrade.
-pub async fn connect(ep: &Endpoint) -> Result<Ws, ConnectError> {
+/// `X-Brew-Extensions` of a 101: comma separated names, trimmed, empty ones dropped.
+pub fn parse_extensions(v: Option<&str>) -> Vec<String> {
+    v.unwrap_or_default().split(',').map(|e| e.trim().to_string()).filter(|e| !e.is_empty()).collect()
+}
+
+/// Discovery + authentication + WebSocket upgrade. Also returns the Brew
+/// extensions the server offers on the 101 (empty for TetraPack and other
+/// servers without the header): the client uses an extension only then.
+pub async fn connect(ep: &Endpoint) -> Result<(Ws, Vec<String>), ConnectError> {
     let url = normalize_url(&ep.url)?;
     let mut resp = http_get(&url, ep, None).await?;
     if resp.status == 401 {
@@ -239,8 +246,9 @@ pub async fn connect(ep: &Endpoint) -> Result<Ws, ConnectError> {
     h.insert("X-Brew-Mode", HeaderValue::from_static("Terminal"));
     h.insert("X-Brew-Version", HeaderValue::from_static("1"));
     let stream = open(&ws_url, ep.insecure_tls).await?;
-    let (ws, _resp) = tokio_tungstenite::client_async(req, stream).await?;
-    Ok(ws)
+    let (ws, resp) = tokio_tungstenite::client_async(req, stream).await?;
+    let offered = parse_extensions(resp.headers().get("X-Brew-Extensions").and_then(|v| v.to_str().ok()));
+    Ok((ws, offered))
 }
 
 #[derive(Debug)]
@@ -303,6 +311,13 @@ mod tests {
         assert_eq!(p["response"], want);
         assert_eq!(p["opaque"], "0f0f");
         assert_eq!(p["uri"], "/brew");
+    }
+
+    #[test]
+    fn parses_the_extension_offer() {
+        assert_eq!(parse_extensions(Some("dmo-position, mni")), vec!["dmo-position", "mni"]);
+        assert_eq!(parse_extensions(Some(" ,mni,, ")), vec!["mni"]);
+        assert!(parse_extensions(None).is_empty());
     }
 
     #[test]

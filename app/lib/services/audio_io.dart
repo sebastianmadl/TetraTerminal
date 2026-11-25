@@ -116,7 +116,25 @@ class AudioIO {
     FlutterPcmSound.feed(PcmArrayInt16.fromList(pcm));
   }
 
+  Timer? _keepAlive;
+
+  /// Background operation on iOS: the app may keep running in the background
+  /// (UIBackgroundModes `audio`) only while its audio session plays. Between
+  /// calls we feed silence so iOS does not suspend the app and the Brew
+  /// connection stays up; calls then play as usual. Costs some battery, so
+  /// only while connected and in the background.
+  void keepAlive(bool on) {
+    _keepAlive?.cancel();
+    _keepAlive = null;
+    if (!on || !_playerReady) return;
+    _keepAlive = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (DateTime.now().difference(_lastPlay) < const Duration(seconds: 1)) return; // a call is playing
+      FlutterPcmSound.feed(PcmArrayInt16.fromList(Int16List(sampleRate ~/ 2)));
+    });
+  }
+
   Future<void> dispose() async {
+    keepAlive(false);
     await stopMic();
     await _recorder.dispose();
     await FlutterPcmSound.release();
