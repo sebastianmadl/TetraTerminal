@@ -34,6 +34,9 @@ dependencies:
   # Bluetooth PTT headset (Savox BTH-101), Android
   headset_ptt:
     path: packages/headset_ptt
+  # Android: ongoing notification (Live Update) with PTT + home screen widget
+  tetra_live:
+    path: packages/tetra_live
 
 dev_dependencies:
   flutter_test:
@@ -46,6 +49,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon_small.png  # settings footer
 
 # dart run flutter_launcher_icons  (run by tool/setup.sh and CI)
 flutter_launcher_icons:

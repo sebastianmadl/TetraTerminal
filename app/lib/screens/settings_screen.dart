@@ -7,10 +7,14 @@ import 'package:provider/provider.dart';
 
 import '../model/settings.dart';
 import '../model/terminal_model.dart';
+import '../services/version.dart';
 import '../ui/adaptive.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
 import 'profile_sheet.dart';
+
+/// Auto-stop of the Live Activity PTT (seconds; 0 = off).
+const pttAutoStopChoices = {0: 'Off', 30: '30 s', 60: '1 min', 120: '2 min', 300: '5 min'};
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -79,6 +83,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   divisions: 11,
                   onChanged: (v) => setState(() => s.defaultPriority = v.round()),
                 ),
+                _LabeledSegments<bool>(
+                  label: 'PTT button',
+                  items: const {false: 'Hold to talk', true: 'Toggle'},
+                  value: s.pttToggle,
+                  onChanged: m.setPttToggle,
+                ),
+                _LabeledSegments<int>(
+                  label: isApple(context) ? 'Toggle and Live Activity stop after' : 'Toggle and notification stop after',
+                  items: pttAutoStopChoices,
+                  value: pttAutoStopChoices.containsKey(s.pttAutoStopSeconds) ? s.pttAutoStopSeconds : 60,
+                  onChanged: m.setPttAutoStop,
+                ),
                 SwitchRow(title: 'Allow pre-emption', subtitle: 'Calls of priority 12–15 may interrupt lower calls', value: s.allowPreemption, onChanged: (v) => setState(() => s.allowPreemption = v)),
               ]),
               if (m.multiNetwork)
@@ -124,9 +140,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (isApple(context))
                   SwitchRow(
                     title: 'Live Activity',
-                    subtitle: 'Group, talker and time on the Lock Screen and in the Dynamic Island',
+                    subtitle: 'Group, talker and time on the Lock Screen and in the Dynamic Island, with a tap-to-talk button',
                     value: s.liveActivity,
                     onChanged: m.setLiveActivity,
+                  )
+                else if (Platform.isAndroid)
+                  SwitchRow(
+                    title: 'Live notification',
+                    subtitle: 'Group, talker and time in the status bar and on the lock screen, with a Talk button. Keeps the app running in the background',
+                    value: s.liveActivity,
+                    onChanged: (v) async {
+                      if (v) await Permission.notification.request();
+                      await m.setLiveActivity(v);
+                    },
                   ),
               ]),
               Section(header: 'Audio', footer: 'In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery.', children: [
@@ -168,9 +194,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ]),
               Padding(
-                padding: const EdgeInsets.fromLTRB(Tokens.gutter, 8, Tokens.gutter, 0),
-                child: Text('TETRA Terminal · Brew v1 terminal${m.extensions.isEmpty ? '' : ' · server offers: ${m.extensions.join(', ')}'}',
-                    textAlign: TextAlign.center, style: TextStyle(color: scheme.outline, fontSize: 12)),
+                padding: const EdgeInsets.fromLTRB(Tokens.gutter, 16, Tokens.gutter, 8),
+                child: DefaultTextStyle.merge(
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.outline, fontSize: 12, height: 1.5),
+                  child: Column(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Image.asset('assets/icon/app_icon_small.png', width: 48, height: 48, semanticLabel: 'TETRA Terminal'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('TETRA Terminal v$appVersion · © 2026', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('Yiassinsam / sebastianmadl (OE4SXM)'),
+                    if (m.extensions.isNotEmpty) Text('Server offers: ${m.extensions.join(', ')}', style: const TextStyle(fontSize: 11)),
+                  ]),
+                ),
               ),
             ]),
           ),
@@ -189,4 +227,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
+}
+
+/// A label above full-width segments, as a settings row.
+class _LabeledSegments<T extends Object> extends StatelessWidget {
+  const _LabeledSegments({super.key, required this.label, required this.items, required this.value, required this.onChanged});
+  final String label;
+  final Map<T, String> items;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(Tokens.gutter, 10, Tokens.gutter, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(label, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 8),
+          Segments<T>(items: items, value: value, onChanged: onChanged),
+        ]),
+      );
 }

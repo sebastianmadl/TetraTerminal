@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'adaptive.dart';
 
@@ -63,8 +64,11 @@ const List<double> _saturate = [
 ];
 
 /// Floating glass tab bar (iOS 26+ style): a capsule inset from the screen
-/// edges, the selected tab on a tinted lens that slides between tabs.
-class GlassTabBar extends StatelessWidget {
+/// edges, the selected tab on a tinted lens that slides between tabs. As in
+/// iOS 26 the lens can be grabbed and dragged across the bar: it lifts
+/// (grows, turns to clear glass) and follows the finger, the tab under it
+/// lights up with a selection tick, and on release it snaps to that tab.
+class GlassTabBar extends StatefulWidget {
   const GlassTabBar({super.key, required this.items, required this.index, required this.onTap, this.badges = const {}});
   final List<(IconData, IconData, String)> items; // (icon, selected icon, label)
   final int index;
@@ -77,63 +81,121 @@ class GlassTabBar extends StatelessWidget {
   static double inset(BuildContext context) => barHeight + 12 + MediaQuery.of(context).padding.bottom.clamp(12, 40);
 
   @override
+  State<GlassTabBar> createState() => _GlassTabBarState();
+}
+
+/// Tab under a lens whose centre is at [x] on a bar of [count] tabs of width [w].
+int tabAt(double x, double w, int count) => (x / w).floor().clamp(0, count - 1);
+
+class _GlassTabBarState extends State<GlassTabBar> {
+  /// Lens centre while dragging; null = resting on [GlassTabBar.index].
+  double? _dragX;
+  int? _hover;
+
+  void _start(double x, double w) {
+    setState(() {
+      _dragX = x;
+      _hover = tabAt(x, w, widget.items.length);
+    });
+  }
+
+  void _move(double x, double w) {
+    final t = tabAt(x, w, widget.items.length);
+    if (t != _hover) HapticFeedback.selectionClick();
+    setState(() {
+      _dragX = x.clamp(w / 2, w * widget.items.length - w / 2);
+      _hover = t;
+    });
+  }
+
+  void _end() {
+    final t = _hover;
+    setState(() {
+      _dragX = null;
+      _hover = null;
+    });
+    if (t != null && t != widget.index) widget.onTap(t);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final bottom = MediaQuery.of(context).padding.bottom.clamp(12.0, 40.0);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final items = widget.items;
+    final dragging = _dragX != null;
+    final active = _hover ?? widget.index;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, bottom),
       child: Glass(
-        radius: barHeight / 2,
+        radius: GlassTabBar.barHeight / 2,
         padding: const EdgeInsets.all(4),
         child: SizedBox(
-          height: barHeight - 8,
+          height: GlassTabBar.barHeight - 8,
           child: LayoutBuilder(builder: (context, box) {
             final w = box.maxWidth / items.length;
-            return Stack(children: [
-              AnimatedPositioned(
-                duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 320),
-                curve: Curves.easeOutBack,
-                left: w * index,
-                top: 0,
-                bottom: 0,
-                width: w,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: scheme.onSurface.withValues(alpha: .08),
-                    borderRadius: BorderRadius.circular(barHeight / 2),
-                  ),
-                ),
-              ),
-              Row(children: [
-                for (final (i, it) in items.indexed)
-                  Expanded(
-                    child: Semantics(
-                      selected: i == index,
-                      button: true,
-                      label: it.$3,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onTap(i),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Badge(
-                            isLabelVisible: badges.contains(i),
-                            smallSize: 8,
-                            child: Icon(i == index ? it.$2 : it.$1, size: 24, color: i == index ? scheme.primary : scheme.onSurface),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(it.$3,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: i == index ? FontWeight.w600 : FontWeight.w500,
-                                color: i == index ? scheme.primary : scheme.onSurface,
-                              )),
-                        ]),
+            final left = dragging ? _dragX! - w / 2 : w * widget.index;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: (d) => _start(d.localPosition.dx, w),
+              onHorizontalDragUpdate: (d) => _move(d.localPosition.dx, w),
+              onHorizontalDragEnd: (_) => _end(),
+              onHorizontalDragCancel: _end,
+              child: Stack(clipBehavior: Clip.none, children: [
+                AnimatedPositioned(
+                  duration: reduceMotion || dragging ? Duration.zero : const Duration(milliseconds: 320),
+                  curve: Curves.easeOutBack,
+                  left: left,
+                  top: 0,
+                  bottom: 0,
+                  width: w,
+                  child: AnimatedScale(
+                    scale: dragging ? 1.18 : 1,
+                    duration: Duration(milliseconds: reduceMotion ? 0 : 180),
+                    curve: Curves.easeOut,
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: reduceMotion ? 0 : 180),
+                      decoration: BoxDecoration(
+                        // Lifted: a clear glass lens with a bright rim; resting: a tint.
+                        color: dragging ? Colors.white.withValues(alpha: dark ? .10 : .35) : scheme.onSurface.withValues(alpha: .08),
+                        borderRadius: BorderRadius.circular(GlassTabBar.barHeight / 2),
+                        border: Border.all(color: Colors.white.withValues(alpha: dragging ? (dark ? .28 : .9) : 0), width: 1),
+                        boxShadow: dragging ? [BoxShadow(color: Colors.black.withValues(alpha: dark ? .4 : .12), blurRadius: 14, offset: const Offset(0, 3))] : null,
                       ),
                     ),
                   ),
+                ),
+                Row(children: [
+                  for (final (i, it) in items.indexed)
+                    Expanded(
+                      child: Semantics(
+                        selected: i == widget.index,
+                        button: true,
+                        label: it.$3,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => widget.onTap(i),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Badge(
+                              isLabelVisible: widget.badges.contains(i),
+                              smallSize: 8,
+                              child: Icon(i == active ? it.$2 : it.$1, size: 24, color: i == active ? scheme.primary : scheme.onSurface),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(it.$3,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: i == active ? FontWeight.w600 : FontWeight.w500,
+                                  color: i == active ? scheme.primary : scheme.onSurface,
+                                )),
+                          ]),
+                        ),
+                      ),
+                    ),
+                ]),
               ]),
-            ]);
+            );
           }),
         ),
       ),

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tetra_terminal/ui/glass.dart';
 import 'package:tetra_terminal/model/settings.dart';
 import 'package:tetra_terminal/model/contacts.dart';
 import 'package:tetra_terminal/model/terminal_model.dart';
@@ -189,6 +190,42 @@ void main() {
     m.groupActivity[91] = GroupCallState(91, 2320972, 'OE1ABC', 1, 'c1', since: DateTime.now().subtract(const Duration(seconds: 12)));
     m.focusCallId = 'c1';
     await _shot(t, '08-android-radio', m, const HomeScreen(), p: TargetPlatform.android);
+  });
+
+  testWidgets('13 settings footer', (t) async {
+    await _shot(t, '13-settings-footer', _model(), const HomeScreen(initialTab: 4), act: (t) async {
+      await t.drag(find.byType(CustomScrollView), const Offset(0, -6000));
+    });
+  });
+
+  testWidgets('14 tab bar lens dragged', (t) async {
+    TestGesture? g;
+    await _shot(t, '14-tabbar-drag', _model(), const HomeScreen(initialTab: 2), act: (t) async {
+      final from = t.getCenter(find.descendant(of: find.byType(GlassTabBar), matching: find.text('Contacts')));
+      g = await t.startGesture(from);
+      for (var i = 1; i <= 6; i++) {
+        await g!.moveTo(from + Offset(i * 9.0, 0));
+        await t.pump(const Duration(milliseconds: 16));
+      }
+    });
+    await g?.up();
+  });
+
+  testWidgets('15 android radio dark, transmitting', (t) async {
+    final m = _model()
+      ..myTxCallId = 'me'
+      ..myTxSince = DateTime.now().subtract(const Duration(seconds: 4));
+    await _shot(t, '15-android-radio-talking-dark', m, const HomeScreen(), b: Brightness.dark, p: TargetPlatform.android);
+  });
+
+  testWidgets('16 android settings', (t) async {
+    await _shot(t, '16-android-settings', _model(), const HomeScreen(initialTab: 4), p: TargetPlatform.android, act: (t) async {
+      await t.drag(find.byType(CustomScrollView), const Offset(0, -380));
+    });
+  });
+
+  testWidgets('17 android recents', (t) async {
+    await _shot(t, '17-android-recents', _model(), const HomeScreen(initialTab: 1), p: TargetPlatform.android);
   });
 
   tearDownAll(() => debugDefaultTargetPlatformOverride = null);

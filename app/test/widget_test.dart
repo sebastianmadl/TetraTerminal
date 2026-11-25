@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tetra_terminal/model/settings.dart';
 import 'package:tetra_terminal/model/terminal_model.dart';
+import 'package:tetra_terminal/src/rust/api.dart';
 
 class MemorySecrets implements SecretStore {
   final values = <String, String>{};
@@ -149,5 +150,46 @@ void main() {
     expect(n.first.own, isTrue);
     expect(n.last.up, isTrue);
     expect(parseNetworks('garbage'), isEmpty);
+  });
+
+  test('Live Activity standby line and tap-to-talk', () async {
+    final m = TerminalModel(Settings()
+      ..issi = 2320001
+      ..name = 'OE1XYZ'
+      ..talkgroups = [Talkgroup(91, 'Austria')]
+      ..selectedGssi = 91
+      ..pttAutoStopSeconds = 30);
+    var s = m.liveStatus();
+    expect((s['ownName'], s['ownIssi']), ('OE1XYZ', 2320001));
+    expect(s['canTalk'], isFalse, reason: 'offline');
+    m.togglePtt();
+    expect(m.latchedTxEndsAt, isNull, reason: 'no key-up while offline');
+
+    m.link = LinkState.online;
+    expect(m.liveStatus()['canTalk'], isTrue);
+    m.togglePtt();
+    expect(m.latchedTxEndsAt, isNotNull);
+    expect(m.latchedTxEndsAt!.difference(DateTime.now()).inSeconds, inInclusiveRange(29, 30));
+    expect(m.liveStatus()['txEndsAt'], m.latchedTxEndsAt!.millisecondsSinceEpoch);
+    m.togglePtt(); // second tap releases
+    expect(m.latchedTxEndsAt, isNull);
+
+    m.settings.pttAutoStopSeconds = 0;
+    m.togglePtt();
+    expect(m.latchedTxEndsAt, isNull, reason: 'auto-stop off');
+    m.handleEvent(const AppEvent.txGranted(callId: 'c9'));
+    expect(m.transmitting, isTrue);
+    m.togglePtt();
+    m.handleEvent(const AppEvent.txEnded(callId: 'c9', preempted: false));
+    expect(m.transmitting, isFalse);
+  });
+
+  test('tap-to-talk auto-stop is saved', () async {
+    final s = Settings()
+      ..pttAutoStopSeconds = 120
+      ..pttToggle = true;
+    await s.save();
+    final l = await Settings.load();
+    expect((l.pttAutoStopSeconds, l.pttToggle), (120, true));
   });
 }

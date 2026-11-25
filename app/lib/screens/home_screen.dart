@@ -244,8 +244,16 @@ class PttButton extends StatefulWidget {
   State<PttButton> createState() => _PttButtonState();
 }
 
-class _PttButtonState extends State<PttButton> {
+class _PttButtonState extends State<PttButton> with SingleTickerProviderStateMixin {
   bool _down = false;
+  // Android: the Expressive cookie turns slowly while transmitting.
+  late final _spin = AnimationController(vsync: this, duration: const Duration(seconds: 12));
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -259,9 +267,19 @@ class _PttButtonState extends State<PttButton> {
     final size = widget.compact ? 96.0 : 132.0;
     final color = !enabled ? scheme.surfaceContainerHigh : (tx ? Tokens.talk : scheme.primary);
 
+    final toggle = m.settings.pttToggle;
+    final apple = isApple(context);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (!apple && tx && !reduceMotion) {
+      if (!_spin.isAnimating) _spin.repeat();
+    } else if (_spin.isAnimating) {
+      _spin.stop();
+    }
+
     void up() {
       if (!_down) return;
       setState(() => _down = false);
+      if (toggle) return;
       Haptics.release();
       m.pttUp();
     }
@@ -271,14 +289,22 @@ class _PttButtonState extends State<PttButton> {
       const Spacer(),
       Semantics(
         button: true,
-        label: tx ? 'Talking. Release to stop' : 'Push to talk. Hold to talk',
+        label: toggle
+            ? (tx || m.pttLatched ? 'Talking. Tap to stop' : 'Push to talk. Tap to start talking')
+            : (tx ? 'Talking. Release to stop' : 'Push to talk. Hold to talk'),
         enabled: enabled,
         child: Listener(
           onPointerDown: enabled
               ? (_) {
                   setState(() => _down = true);
-                  Haptics.press();
-                  m.pttDown();
+                  if (toggle) {
+                    final stopping = tx || m.pttLatched;
+                    stopping ? Haptics.release() : Haptics.press();
+                    m.togglePtt();
+                  } else {
+                    Haptics.press();
+                    m.pttDown();
+                  }
                 }
               : null,
           onPointerUp: enabled ? (_) => up() : null,
@@ -287,18 +313,30 @@ class _PttButtonState extends State<PttButton> {
             scale: _down ? .95 : 1,
             duration: const Duration(milliseconds: 90),
             curve: Curves.easeOut,
-            child: AnimatedContainer(
+            child: AnimatedBuilder(
+              animation: _spin,
+              builder: (context, child) => AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               width: size,
               height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color,
-                boxShadow: [
-                  BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .40 : .10), blurRadius: tx ? 28 : 16, spreadRadius: tx ? 4 : 0, offset: const Offset(0, 6)),
-                ],
-              ),
+              decoration: apple
+                  ? BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      boxShadow: [
+                        BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .40 : .10), blurRadius: tx ? 28 : 16, spreadRadius: tx ? 4 : 0, offset: const Offset(0, 6)),
+                      ],
+                    )
+                  : ShapeDecoration(
+                      shape: CookieBorder(lobes: 12, depth: tx ? .04 : .03, rotation: _spin.value / 12),
+                      color: color,
+                      shadows: [
+                        BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .35 : .12), blurRadius: tx ? 24 : 12, offset: const Offset(0, 4)),
+                      ],
+                    ),
               alignment: Alignment.center,
+              child: child,
+            ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: widget.compact ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
                 const SizedBox(height: 4),

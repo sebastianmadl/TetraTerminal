@@ -16,6 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Liquid Glass in the Live Activity needs the iOS 26 SDK (Xcode 26).
+      # Picks the newest Xcode 26 on the runner; keeps the default otherwise.
+      - name: Select Xcode
+        continue-on-error: true
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

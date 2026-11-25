@@ -169,6 +169,11 @@ class Settings {
   String appearance = 'system';
   /// iOS: show the radio on the Lock Screen and in the Dynamic Island.
   bool liveActivity = true;
+  /// PTT button: false = hold to talk, true = tap to start and tap to stop.
+  bool pttToggle = false;
+  /// Tap-to-talk (toggle mode and the Live Activity button) stops by itself
+  /// after this many seconds; 0 = off.
+  int pttAutoStopSeconds = 60;
 
   // LIP
   bool lipEnabled = false;
@@ -222,6 +227,8 @@ class Settings {
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..appearance = j['appearance'] ?? 'system'
       ..liveActivity = j['liveActivity'] ?? true
+      ..pttToggle = j['pttToggle'] ?? false
+      ..pttAutoStopSeconds = j['pttAutoStopSeconds'] ?? 60
       ..lipEnabled = j['lipEnabled'] ?? false
       ..lipDestination = j['lipDestination'] ?? 0
       ..lipIntervalSeconds = j['lipIntervalSeconds'] ?? 60
@@ -267,6 +274,8 @@ class Settings {
         'backgroundAudio': backgroundAudio,
         'appearance': appearance,
         'liveActivity': liveActivity,
+        'pttToggle': pttToggle,
+        'pttAutoStopSeconds': pttAutoStopSeconds,
         'lipEnabled': lipEnabled,
         'lipDestination': lipDestination,
         'lipIntervalSeconds': lipIntervalSeconds,

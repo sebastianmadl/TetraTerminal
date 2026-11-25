@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
@@ -176,6 +179,10 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       'emergency': call?.emergency ?? false,
       'lastTalker': _lastTalker,
       'lastTalkerAt': _lastTalkerAt?.millisecondsSinceEpoch,
+      'ownName': settings.name.trim().isEmpty ? null : settings.name.trim(),
+      'ownIssi': settings.issi > 0 ? settings.issi : null,
+      'canTalk': link == LinkState.online && (privateCall != null || (settings.selectedGssi != null && mayTalkOnSelected)),
+      'txEndsAt': latchedTxEndsAt?.millisecondsSinceEpoch,
     };
   }
   int? get selectedGssi => settings.selectedGssi;
@@ -185,6 +192,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> start() async {
     WidgetsBinding.instance.addObserver(this);
+    live.onTogglePtt(togglePtt);
+    // Android 13+: the ongoing notification needs the notification permission.
+    if (!kIsWeb && Platform.isAndroid && settings.liveActivity) unawaited(Permission.notification.request());
     contacts.addListener(notifyListeners);
     await contacts.load();
     await callLog.load();
@@ -369,10 +379,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         HapticFeedback.heavyImpact();
         _startMic();
       case AppEvent_TxDenied(:final reason):
+        _clearLatch();
         HapticFeedback.vibrate();
         toast = 'PTT denied: $reason';
       case AppEvent_TxEnded(:final callId, :final preempted):
-        if (myTxCallId == callId) myTxCallId = null;
+        if (myTxCallId == callId) {
+          myTxCallId = null;
+          _clearLatch();
+        }
         _logEnd('tx:$callId');
         if (preempted) toast = 'Transmission pre-empted by a higher priority call';
         _updateMic();
@@ -506,6 +520,58 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       _releaseTimer = null;
       _client?.ptt(pressed: false, group: null, emergency: false);
     });
+  }
+
+  Timer? _autoStop;
+  bool _latched = false;
+
+  /// When the Live Activity PTT stops by itself (null = no auto-stop or not latched).
+  DateTime? latchedTxEndsAt;
+
+  /// Tap-to-talk (the PTT button in toggle mode and the Live Activity, whose
+  /// buttons only take taps): the first tap keys up, the next one releases.
+  /// Stops by itself after [Settings.pttAutoStopSeconds] unless that is 0.
+  void togglePtt() {
+    if (transmitting || _latched) {
+      _clearLatch();
+      pttUp();
+    } else {
+      if (link != LinkState.online || (privateCall == null && !mayTalkOnSelected)) return;
+      _latched = true;
+      pttDown();
+      final secs = settings.pttAutoStopSeconds;
+      if (secs > 0) {
+        latchedTxEndsAt = DateTime.now().add(Duration(seconds: secs));
+        _autoStop = Timer(Duration(seconds: secs), () {
+          _clearLatch();
+          pttUp();
+          notifyListeners();
+        });
+      }
+    }
+    notifyListeners();
+  }
+
+  void _clearLatch() {
+    _autoStop?.cancel();
+    _autoStop = null;
+    _latched = false;
+    latchedTxEndsAt = null;
+  }
+
+  /// Whether tap-to-talk is keyed up (waiting for the grant or transmitting).
+  bool get pttLatched => _latched;
+
+  Future<void> setPttToggle(bool on) async {
+    settings.pttToggle = on;
+    notifyListeners();
+    await settings.save();
+  }
+
+  Future<void> setPttAutoStop(int seconds) async {
+    settings.pttAutoStopSeconds = seconds;
+    notifyListeners();
+    await settings.save();
   }
 
   Future<void> selectGroup(int gssi) async {
