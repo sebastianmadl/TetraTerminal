@@ -39,6 +39,8 @@ dependencies:
   # Android: ongoing notification (Live Update) with PTT + home screen widget
   tetra_live:
     path: packages/tetra_live
+  tetra_mic:
+    path: packages/tetra_mic
 
 dev_dependencies:
   flutter_test:

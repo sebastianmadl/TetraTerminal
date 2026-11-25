@@ -6,6 +6,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:record/record.dart' hide IosAudioCategory;
+import 'package:tetra_mic/tetra_mic.dart';
 
 /// 8 kHz mono PCM16 microphone capture and speaker playback.
 ///
@@ -25,7 +26,10 @@ class AudioIO {
   /// Microphone trim in dB (applies immediately, also mid-transmission).
   set micGainDb(double db) => _decim.setTrimDb(db);
 
-  final _recorder = AudioRecorder();
+  /// Android capture; iOS uses [TetraMic], which survives hardware changes.
+  /// Created on first use, so iOS never instantiates it.
+  AudioRecorder? _rec;
+  AudioRecorder get _recorder => _rec ??= AudioRecorder();
   StreamSubscription<Uint8List>? _micSub;
   bool _playerReady = false;
   DateTime _lastPlay = DateTime.fromMillisecondsSinceEpoch(0);
@@ -47,9 +51,9 @@ class AudioIO {
       iosAudioCategory: IosAudioCategory.playAndRecord,
       iosAllowBackgroundAudio: true,
     );
-    // iOS: one session for simultaneous mic + speaker (full-duplex calls), voice
-    // processing (echo cancellation), loudspeaker by default, Bluetooth headsets
-    // allowed. On Android this maps to voice-communication audio.
+    // iOS: playAndRecord so mic and speaker work together; normal playback
+    // mode unless a full-duplex call runs (see sessionConfig). On Android
+    // this requests voice-communication audio focus.
     final session = await AudioSession.instance;
     _session = session;
     await session.configure(_config());
@@ -87,21 +91,10 @@ class AudioIO {
 
   static bool get _isApple => defaultTargetPlatform == TargetPlatform.iOS;
 
-  /// iOS: one session for simultaneous mic + speaker (full-duplex calls),
-  /// voice processing, Bluetooth headsets allowed; `defaultToSpeaker` only in
-  /// loudspeaker mode. Android: voice-communication audio.
-  AudioSessionConfiguration _config() => AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-        avAudioSessionCategoryOptions: (speaker ? AVAudioSessionCategoryOptions.defaultToSpeaker : AVAudioSessionCategoryOptions.none) |
-            AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-        avAudioSessionMode: AVAudioSessionMode.voiceChat,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.speech,
-          usage: AndroidAudioUsage.voiceCommunication,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
-      );
+  AudioSessionConfiguration _config() => sessionConfig(speaker: speaker, duplex: _duplex);
+
+  /// A full-duplex call with echo cancellation is running (see [startMic]).
+  bool _duplex = false;
 
   /// Switches between loudspeaker and earpiece at once (also mid-call).
   Future<void> setSpeaker(bool on) async {
@@ -114,6 +107,7 @@ class AudioIO {
   }
 
   bool _routing = false;
+  String? _androidRoute;
 
   /// Puts the output where [speaker] says, unless a headset is connected.
   Future<void> _applyRoute() async {
@@ -129,6 +123,10 @@ class AudioIO {
         final am = AndroidAudioManager();
         final devices = await am.getDevices(AndroidGetAudioDevicesFlags.outputs);
         final headset = devices.any((d) => isHeadset(d.type));
+        final want = headset ? 'headset' : (speaker ? 'speaker' : 'earpiece');
+        // Same as last time: nothing to do (each call can glitch the output).
+        if (want == _androidRoute) return;
+        _androidRoute = want;
         if (headset) {
           await am.setMode(AndroidAudioHardwareMode.normal);
           await am.setSpeakerphoneOn(false);
@@ -160,26 +158,13 @@ class AudioIO {
   Future<void> startMic(void Function(Int16List pcm) onPcm, {bool voiceProcessing = false}) async {
     if (_micSub != null) return;
     _decim.reset();
-    if (!await _recorder.hasPermission()) {
+    _carry.clear();
+    final granted = _isApple ? await TetraMic.hasPermission() : await _recorder.hasPermission();
+    if (!granted) {
       throw StateError('Microphone permission denied');
     }
-    final stream = await _recorder.startStream(RecordConfig(
-      encoder: AudioEncoder.pcm16bits,
-      sampleRate: _micRate,
-      numChannels: 1,
-      echoCancel: voiceProcessing,
-      noiseSuppress: voiceProcessing,
-      autoGain: voiceProcessing,
-      // The session is ours (see init); letting the plugin reset it to its own
-      // category drops voiceChat/defaultToSpeaker and can stop background audio.
-      iosConfig: const IosRecordConfig(manageAudioSession: false),
-      androidConfig: const AndroidRecordConfig(
-        // Plain mic: on Samsung (and others) voiceCommunication yields near-silent input
-        // unless the whole system is in call mode.
-        audioSource: AndroidAudioSource.mic,
-      ),
-    ));
-    _micSub = stream.listen((bytes) {
+    await _setDuplex(voiceProcessing);
+    void onBytes(Uint8List bytes) {
       // Chunks can split a sample; keep any odd trailing byte for next time.
       _carry.add(bytes);
       final all = _carry.takeBytes();
@@ -190,16 +175,59 @@ class AudioIO {
         if (samples.isNotEmpty) onPcm(samples);
       }
       if (even < all.length) _carry.add(all.sublist(even));
-    });
+    }
+
+    if (_isApple) {
+      // Own capture: the record plugin fixes its converter at start and keeps
+      // converting with it after the hardware was reconfigured mid-recording,
+      // which the ACELP encoder turns into a loud tone.
+      try {
+        _micSub = await TetraMic.start(sampleRate: _micRate, voiceProcessing: voiceProcessing, onData: onBytes);
+      } catch (_) {
+        await _setDuplex(false);
+        rethrow;
+      }
+    } else {
+      final stream = await _recorder.startStream(RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: _micRate,
+        numChannels: 1,
+        echoCancel: voiceProcessing,
+        noiseSuppress: voiceProcessing,
+        autoGain: voiceProcessing,
+        androidConfig: const AndroidRecordConfig(
+          // Plain mic: on Samsung (and others) voiceCommunication yields near-silent input
+          // unless the whole system is in call mode.
+          audioSource: AndroidAudioSource.mic,
+        ),
+      ));
+      _micSub = stream.listen(onBytes);
+    }
     await _applyRoute();
   }
 
   Future<void> stopMic() async {
     await _micSub?.cancel();
+    final wasRunning = _micSub != null;
     _micSub = null;
     _carry.clear();
-    if (await _recorder.isRecording()) await _recorder.stop();
+    if (_isApple) {
+      if (wasRunning) await TetraMic.stop();
+    } else if (await _recorder.isRecording()) {
+      await _recorder.stop();
+    }
+    await _setDuplex(false);
     await _applyRoute();
+  }
+
+  /// Switches the session between call mode (full duplex) and normal playback.
+  Future<void> _setDuplex(bool on) async {
+    if (_duplex == on) return;
+    _duplex = on;
+    if (_session == null) return;
+    try {
+      await _session!.configure(_config());
+    } catch (_) {}
   }
 
   final _queue = PlayoutQueue(sampleRate);
@@ -252,10 +280,32 @@ class AudioIO {
   Future<void> dispose() async {
     keepAlive(false);
     await stopMic();
-    await _recorder.dispose();
+    await _rec?.dispose();
     await FlutterPcmSound.release();
   }
 }
+
+/// The audio session for the current state.
+///
+/// iOS: `playAndRecord` so mic and speaker work together, Bluetooth headsets
+/// allowed, `defaultToSpeaker` only in loudspeaker mode. The session mode is
+/// `voiceChat` only while a full-duplex call runs with echo cancellation:
+/// that mode makes iOS treat the app as a phone call, so the volume buttons
+/// set the call volume and the output is the quieter call level, even on the
+/// loudspeaker. Group calls and PTT play in the default mode, at media volume.
+/// Android: voice-communication audio focus (playback itself is media audio).
+AudioSessionConfiguration sessionConfig({required bool speaker, required bool duplex}) => AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+      avAudioSessionCategoryOptions: (speaker ? AVAudioSessionCategoryOptions.defaultToSpeaker : AVAudioSessionCategoryOptions.none) |
+          AVAudioSessionCategoryOptions.allowBluetooth |
+          AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+      avAudioSessionMode: duplex ? AVAudioSessionMode.voiceChat : AVAudioSessionMode.defaultMode,
+      androidAudioAttributes: const AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.speech,
+        usage: AndroidAudioUsage.voiceCommunication,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
+    );
 
 /// Output ports that are a headset or another external device: they always
 /// win over the loudspeaker / earpiece choice.
@@ -271,12 +321,20 @@ const _externalPorts = {
   AVAudioSessionPort.hdmi,
 };
 
-/// iOS output override for the current route: force the loudspeaker in
-/// loudspeaker mode (even if iOS fell back to the receiver), none in earpiece
-/// mode, and leave an external device alone (`null`: nothing to do).
+/// iOS output override needed for the current route, or `null` when the
+/// route is already right. Only a wrong route is touched: every override
+/// reconfigures the audio hardware, and doing it again and again on each route
+/// notification (mic start/stop, category changes) breaks up the playback
+/// into short dropouts, heard as chirping.
+///
+/// Loudspeaker mode: move off the receiver if iOS fell back to it. Earpiece
+/// mode: clear the override if the loudspeaker is playing. A headset or other
+/// external device is left alone.
 AVAudioSessionPortOverride? iosOverride({required bool speaker, required List<AVAudioSessionPort?> outputs}) {
-  if (outputs.any(_externalPorts.contains)) return AVAudioSessionPortOverride.none;
-  return speaker ? AVAudioSessionPortOverride.speaker : AVAudioSessionPortOverride.none;
+  if (outputs.any(_externalPorts.contains)) return null;
+  if (speaker && outputs.contains(AVAudioSessionPort.builtInReceiver)) return AVAudioSessionPortOverride.speaker;
+  if (!speaker && outputs.contains(AVAudioSessionPort.builtInSpeaker)) return AVAudioSessionPortOverride.none;
+  return null;
 }
 
 /// Android device types that count as a headset (they win over the choice).
