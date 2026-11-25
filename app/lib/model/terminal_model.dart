@@ -260,14 +260,16 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         audio.keepAlive(false);
         if (_wantOnline && link == LinkState.offline && settings.isConfigured) connect();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
         // Stay reachable in the background while connected (see AudioIO.keepAlive).
+        // Starts already on inactive: by the time the app is paused iOS no
+        // longer lets it start playback.
         audio.keepAlive(_wantOnline && settings.backgroundAudio);
       case AppLifecycleState.detached:
         live.end();
         if (_client != null) _client!.shutdown();
-      default:
-        break;
     }
   }
 

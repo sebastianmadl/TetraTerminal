@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
-import 'package:record/record.dart';
+import 'package:record/record.dart' hide IosAudioCategory;
 
 /// 8 kHz mono PCM16 microphone capture and speaker playback.
 ///
@@ -31,6 +31,16 @@ class AudioIO {
   final _carry = BytesBuilder(copy: false);
 
   Future<void> init() async {
+    // flutter_pcm_sound sets its own AVAudioSession category in setup(), so it
+    // goes first and our configuration below wins. iosAllowBackgroundAudio is
+    // essential: without it the plugin silently drops every frame fed while the
+    // app is not active (screen locked or in the background).
+    await FlutterPcmSound.setup(
+      sampleRate: sampleRate,
+      channelCount: 1,
+      iosAudioCategory: IosAudioCategory.playAndRecord,
+      iosAllowBackgroundAudio: true,
+    );
     // iOS: one session for simultaneous mic + speaker (full-duplex calls), voice
     // processing (echo cancellation), loudspeaker by default, Bluetooth headsets
     // allowed. On Android this maps to voice-communication audio.
@@ -48,9 +58,23 @@ class AudioIO {
       androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
     ));
     await session.setActive(true);
-    await FlutterPcmSound.setup(sampleRate: sampleRate, channelCount: 1);
+    // After a phone call or Siri the session is deactivated and the output unit
+    // stopped. Reactivate and, in the background, restart the silence at once,
+    // since iOS only lets an app keep (not start) audio there.
+    session.interruptionEventStream.listen((e) async {
+      if (e.begin) return;
+      try {
+        await session.setActive(true);
+      } catch (_) {}
+      if (_keepAlive != null) _feedSilenceIfLow();
+    });
     // ~120 ms of headroom: two Brew frames of jitter.
     await FlutterPcmSound.setFeedThreshold(sampleRate ~/ 8);
+    // The plugin reports how much is really queued; keeps our estimate honest.
+    FlutterPcmSound.setFeedCallback((remaining) {
+      _queue.sync(remaining);
+      if (_keepAlive != null) _feedSilenceIfLow();
+    });
     _playerReady = true;
   }
 
@@ -76,6 +100,9 @@ class AudioIO {
       echoCancel: voiceProcessing,
       noiseSuppress: voiceProcessing,
       autoGain: voiceProcessing,
+      // The session is ours (see init); letting the plugin reset it to its own
+      // category drops voiceChat/defaultToSpeaker and can stop background audio.
+      iosConfig: const IosRecordConfig(manageAudioSession: false),
       androidConfig: const AndroidRecordConfig(
         // Plain mic: on Samsung (and others) voiceCommunication yields near-silent input
         // unless the whole system is in call mode.
@@ -103,34 +130,51 @@ class AudioIO {
     if (await _recorder.isRecording()) await _recorder.stop();
   }
 
+  final _queue = PlayoutQueue(sampleRate);
+
+  void _feed(Int16List pcm) {
+    _queue.fed(pcm.length);
+    FlutterPcmSound.feed(PcmArrayInt16.fromList(pcm));
+  }
+
   /// Plays one decoded Brew frame (480 samples = 60 ms).
   void play(Int16List pcm) {
     if (!_playerReady) return;
     // New talk spurt (or after an underrun): queue 60 ms of silence first so
-    // network jitter between frames does not turn into clicks and gaps.
+    // network jitter between frames does not turn into clicks and gaps. Not
+    // needed when keep-alive silence is still queued ahead of the frame.
     final now = DateTime.now();
-    if (now.difference(_lastPlay) > const Duration(milliseconds: 150)) {
-      FlutterPcmSound.feed(PcmArrayInt16.fromList(Int16List(pcm.length)));
+    if (now.difference(_lastPlay) > const Duration(milliseconds: 150) && _queue.queuedSamples() < pcm.length) {
+      _feed(Int16List(pcm.length));
     }
     _lastPlay = now;
-    FlutterPcmSound.feed(PcmArrayInt16.fromList(pcm));
+    _feed(pcm);
   }
 
   Timer? _keepAlive;
 
+  void _feedSilenceIfLow() {
+    if (!_playerReady) return;
+    if (DateTime.now().difference(_lastPlay) < const Duration(milliseconds: 300)) return; // a call is playing
+    final n = _queue.silenceToFeed();
+    if (n > 0) _feed(Int16List(n));
+  }
+
   /// Background operation on iOS: the app may keep running in the background
-  /// (UIBackgroundModes `audio`) only while its audio session plays. Between
-  /// calls we feed silence so iOS does not suspend the app and the Brew
-  /// connection stays up; calls then play as usual. Costs some battery, so
-  /// only while connected and in the background.
+  /// (UIBackgroundModes `audio`) only while its audio session plays, and iOS
+  /// refuses to *start* playback once the app is in the background. So silence
+  /// must already be flowing when the app leaves the foreground: the model
+  /// turns this on as soon as the app becomes inactive, and the first block is
+  /// fed right away. Afterwards a short queue of silence is topped up (timer
+  /// plus the plugin's low-buffer callback) so the output unit never runs dry;
+  /// calls then play as usual. Costs some battery.
   void keepAlive(bool on) {
+    if (on && _keepAlive != null) return;
     _keepAlive?.cancel();
     _keepAlive = null;
     if (!on || !_playerReady) return;
-    _keepAlive = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (DateTime.now().difference(_lastPlay) < const Duration(seconds: 1)) return; // a call is playing
-      FlutterPcmSound.feed(PcmArrayInt16.fromList(Int16List(sampleRate ~/ 2)));
-    });
+    _keepAlive = Timer.periodic(const Duration(milliseconds: 100), (_) => _feedSilenceIfLow());
+    _feedSilenceIfLow();
   }
 
   Future<void> dispose() async {
@@ -139,6 +183,39 @@ class AudioIO {
     await _recorder.dispose();
     await FlutterPcmSound.release();
   }
+}
+
+/// Estimates how much audio is still queued in the player, so keep-alive
+/// silence keeps it from running dry (on iOS the output unit stops when empty
+/// and cannot be restarted in the background) without piling up latency in
+/// front of the next call. Corrected by the plugin's remaining-frames reports.
+class PlayoutQueue {
+  PlayoutQueue(this.rate, {DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  final int rate;
+  final DateTime Function() _clock;
+  DateTime _until = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Top up when less than this is queued...
+  int get lowWater => rate * 15 ~/ 100; // 150 ms
+  /// ...with this much silence (keeps the queue, and call latency, under ~400 ms).
+  int get block => rate * 25 ~/ 100; // 250 ms
+
+  Duration _dur(int samples) => Duration(microseconds: samples * 1000000 ~/ rate);
+
+  void fed(int samples) {
+    final now = _clock();
+    _until = (_until.isAfter(now) ? _until : now).add(_dur(samples));
+  }
+
+  void sync(int remainingSamples) => _until = _clock().add(_dur(remainingSamples));
+
+  int queuedSamples() {
+    final left = _until.difference(_clock());
+    return left.isNegative ? 0 : left.inMicroseconds * rate ~/ 1000000;
+  }
+
+  /// Samples of silence to feed now (0 = enough queued).
+  int silenceToFeed() => queuedSamples() < lowWater ? block : 0;
 }
 
 /// 16 kHz -> 8 kHz: windowed-sinc low-pass (cut-off 3.4 kHz) then keep every
