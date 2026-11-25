@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
+import '../services/live_status.dart';
 import '../services/location_service.dart';
 import '../services/ptt_input.dart';
 import '../src/rust/api.dart';
@@ -66,6 +67,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Settings settings;
   final audio = AudioIO();
+  final live = LiveStatus();
   late final location = LocationService((loc, reason) => _client?.sendLocation(to: settings.lipDestination, location: loc, reason: reason));
 
   TetraClient? _client;
@@ -107,6 +109,45 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   bool _swallowRelease = false;
 
   bool get transmitting => myTxCallId != null;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    // The widget always gets the status; the Live Activity runs while `live`.
+    live.update(liveStatus());
+  }
+
+  String? _lastTalker;
+  DateTime? _lastTalkerAt;
+
+  /// What the Live Activity and the home screen widget show. Times are
+  /// milliseconds since the epoch; `live` says whether the Live Activity runs.
+  Map<String, Object?> liveStatus() {
+    final selected = settings.talkgroups.where((t) => t.gssi == settings.selectedGssi).firstOrNull;
+    final call = transmitting
+        ? null
+        : heard ?? groupActivity[settings.selectedGssi] ?? groupActivity.values.firstOrNull;
+    String groupName(int gssi) => settings.talkgroups.where((t) => t.gssi == gssi).firstOrNull?.name ?? 'TG $gssi';
+    final talker = transmitting ? 'You' : (call == null ? null : call.talkerName ?? 'ISSI ${call.talker}');
+    final since = transmitting ? myTxSince : call?.since;
+    if (talker != null && !transmitting) {
+      _lastTalker = talker;
+      _lastTalkerAt = since;
+    }
+    return {
+      'live': _wantOnline && settings.liveActivity,
+      'online': link == LinkState.online,
+      'profile': settings.active.displayName,
+      'server': settings.active.displayName,
+      'group': call != null ? groupName(call.gssi) : (selected?.name ?? (settings.selectedGssi != null ? 'TG ${settings.selectedGssi}' : 'No talkgroup')),
+      'talker': talker,
+      'talkerSince': talker == null ? null : since?.millisecondsSinceEpoch,
+      'transmitting': transmitting,
+      'emergency': call?.emergency ?? false,
+      'lastTalker': _lastTalker,
+      'lastTalkerAt': _lastTalkerAt?.millisecondsSinceEpoch,
+    };
+  }
   int? get selectedGssi => settings.selectedGssi;
 
   /// The talker currently heard, for the status banner.
@@ -189,6 +230,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         // Stay reachable in the background while connected (see AudioIO.keepAlive).
         audio.keepAlive(_wantOnline && settings.backgroundAudio);
       case AppLifecycleState.detached:
+        live.end();
         if (_client != null) _client!.shutdown();
       default:
         break;
@@ -462,6 +504,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   /// Light, dark or follow the system; applies at once.
   Future<void> setAppearance(String v) async {
     settings.appearance = v;
+    notifyListeners();
+    await settings.save();
+  }
+
+  Future<void> setLiveActivity(bool on) async {
+    settings.liveActivity = on;
     notifyListeners();
     await settings.save();
   }

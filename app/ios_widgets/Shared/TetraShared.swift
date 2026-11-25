@@ -1,0 +1,52 @@
+import Foundation
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
+
+/// Shared by the app and the widget extension.
+enum TetraShared {
+  /// App Group for the home screen widget: "group." + the app's bundle id.
+  static var appGroup: String {
+    let app = Bundle.main.bundleIdentifier ?? "org.tetra.terminal.tetraTerminal"
+    // The widget extension's id is the app's id + ".TetraWidgets".
+    let base = app.hasSuffix(".TetraWidgets") ? String(app.dropLast(".TetraWidgets".count)) : app
+    return "group.\(base)"
+  }
+  static let statusKey = "tetra.status"
+
+  static func loadStatus() -> TetraStatus? {
+    guard let data = UserDefaults(suiteName: appGroup)?.data(forKey: statusKey) else { return nil }
+    return try? JSONDecoder().decode(TetraStatus.self, from: data)
+  }
+
+  static func saveStatus(_ status: TetraStatus) {
+    guard let defaults = UserDefaults(suiteName: appGroup), let data = try? JSONEncoder().encode(status) else { return }
+    defaults.set(data, forKey: statusKey)
+  }
+}
+
+/// What the app is doing right now: server, group, who talks and since when.
+struct TetraStatus: Codable, Hashable, Sendable {
+  var server: String
+  var group: String
+  var talker: String?
+  var talkerSince: Date?
+  var transmitting: Bool
+  var emergency: Bool
+  var online: Bool
+  var lastTalker: String?
+  var lastTalkerAt: Date?
+
+  static let sample = TetraStatus(
+    server: "TMO Austria", group: "Austria", talker: "OE1ABC", talkerSince: Date().addingTimeInterval(-12),
+    transmitting: false, emergency: false, online: true, lastTalker: "OE1ABC", lastTalkerAt: Date())
+}
+
+#if canImport(ActivityKit)
+@available(iOS 16.2, *)
+struct TetraActivityAttributes: ActivityAttributes {
+  typealias ContentState = TetraStatus
+  /// The connection profile the activity belongs to.
+  var profile: String
+}
+#endif

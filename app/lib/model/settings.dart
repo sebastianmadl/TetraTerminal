@@ -167,6 +167,8 @@ class Settings {
   bool backgroundAudio = true;
   /// 'system', 'light' or 'dark'.
   String appearance = 'system';
+  /// iOS: show the radio on the Lock Screen and in the Dynamic Island.
+  bool liveActivity = true;
 
   // LIP
   bool lipEnabled = false;
@@ -219,6 +221,7 @@ class Settings {
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..appearance = j['appearance'] ?? 'system'
+      ..liveActivity = j['liveActivity'] ?? true
       ..lipEnabled = j['lipEnabled'] ?? false
       ..lipDestination = j['lipDestination'] ?? 0
       ..lipIntervalSeconds = j['lipIntervalSeconds'] ?? 60
@@ -263,6 +266,7 @@ class Settings {
         'micGainDb': micGainDb,
         'backgroundAudio': backgroundAudio,
         'appearance': appearance,
+        'liveActivity': liveActivity,
         'lipEnabled': lipEnabled,
         'lipDestination': lipDestination,
         'lipIntervalSeconds': lipIntervalSeconds,

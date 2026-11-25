@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tetra_terminal/model/settings.dart';
@@ -14,6 +15,10 @@ class MemorySecrets implements SecretStore {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  // The audio plugin has no test implementation.
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(const MethodChannel('com.llfbandit.record/messages'), (_) async => null);
   test('settings persist and affiliate selected + scanned groups', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = MemorySecrets();
@@ -89,6 +94,33 @@ void main() {
     final loaded = await Settings.load();
     expect((loaded.homeMcc, loaded.homeMnc), (901, 1638));
     expect(loaded.groupsOfOtherNetworks.map((t) => t.gssi), [2324], reason: '91 has no network, 9 is in the home network');
+  });
+
+  test('status for the Live Activity and the widget', () {
+    final m = TerminalModel(Settings()
+      ..talkgroups = [Talkgroup(91, 'Austria'), Talkgroup(9, 'Vienna')]
+      ..selectedGssi = 91)
+      ..link = LinkState.online;
+    var s = m.liveStatus();
+    expect(s['group'], 'Austria');
+    expect(s['talker'], isNull);
+    expect(s['online'], isTrue);
+    expect(s['live'], isFalse, reason: 'not connected by the user yet');
+
+    final since = DateTime(2026, 11, 25, 10, 0, 0);
+    m.groupActivity[9] = GroupCallState(9, 2320972, 'OE1ABC', 15, 'c1', since: since);
+    s = m.liveStatus();
+    expect(s['group'], 'Vienna', reason: 'a scanned group that is talking wins');
+    expect(s['talker'], 'OE1ABC');
+    expect(s['talkerSince'], since.millisecondsSinceEpoch);
+    expect(s['emergency'], isTrue);
+
+    m.groupActivity.clear();
+    m.myTxCallId = 'me';
+    m.myTxSince = since;
+    s = m.liveStatus();
+    expect((s['talker'], s['transmitting'], s['group']), ('You', true, 'Austria'));
+    expect(s['lastTalker'], 'OE1ABC', reason: 'the widget shows who spoke last');
   });
 
   test('SERVICE_NETWORKS is parsed with the server first', () {

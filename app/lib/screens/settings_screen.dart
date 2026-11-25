@@ -106,6 +106,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+                if (isApple(context))
+                  SwitchRow(
+                    title: 'Live Activity',
+                    subtitle: 'Group, talker and time on the Lock Screen and in the Dynamic Island',
+                    value: s.liveActivity,
+                    onChanged: m.setLiveActivity,
+                  ),
               ]),
               Section(header: 'Audio', footer: 'In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery.', children: [
                 SwitchRow(title: 'Run in the background', value: s.backgroundAudio, onChanged: (v) => setState(() => s.backgroundAudio = v)),
