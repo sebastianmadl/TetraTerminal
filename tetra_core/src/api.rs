@@ -31,6 +31,9 @@ pub struct TerminalConfig {
     pub default_priority: u8,
     pub allow_preemption: bool,
     pub insecure_tls: bool,
+    /// Log in as a Basestation (like FlowStation) instead of a Terminal. Only
+    /// for a server whose operator allows this app as a station.
+    pub basestation: bool,
     /// Multi Network: home network MCC/MNC; 0/0 = the server's own network.
     pub home_mcc: u16,
     pub home_mnc: u16,
@@ -201,6 +204,7 @@ impl TetraClient {
                 password: config.password,
                 user_agent: format!("TetraBrewTerminal/{}", env!("CARGO_PKG_VERSION")),
                 insecure_tls: config.insecure_tls,
+                mode: if config.basestation { crate::transport::BrewMode::Basestation } else { crate::transport::BrewMode::Terminal },
             },
             issi: config.issi,
             name: config.name,

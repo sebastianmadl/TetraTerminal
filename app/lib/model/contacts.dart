@@ -49,7 +49,8 @@ class ContactBook extends ChangeNotifier {
   String display(int issi, {String? sentName}) {
     final own = contactOf(issi)?.name;
     if (own != null && own.isNotEmpty) return own;
-    if (sentName != null && sentName.isNotEmpty) return sentName;
+    // A name with control characters is a mis-decoded one: fall back to RadioID.
+    if (sentName != null && sentName.trim().isNotEmpty && !sentName.contains(RegExp(r'[\x00-\x1f\x7f]'))) return sentName;
     return _radioId[issi]?.callsign ?? 'ISSI $issi';
   }
 

@@ -546,7 +546,7 @@ mod tests {
     fn session(mni: bool) -> Session {
         let (tx, _rx) = mpsc::unbounded_channel();
         let cfg = ClientConfig {
-            endpoint: Endpoint { url: String::new(), username: String::new(), password: String::new(), user_agent: String::new(), insecure_tls: false },
+            endpoint: Endpoint { url: String::new(), username: String::new(), password: String::new(), user_agent: String::new(), insecure_tls: false, mode: Default::default() },
             issi: 2040001,
             name: None,
             groups: vec![91, 2324],

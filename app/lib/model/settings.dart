@@ -52,6 +52,7 @@ class ConnectionProfile {
     this.issi = 0,
     this.name = '',
     this.insecureTls = false,
+    this.basestation = false,
     this.homeMcc = 0,
     this.homeMnc = 0,
     this.externalPrefix = '',
@@ -70,6 +71,10 @@ class ConnectionProfile {
   /// Talker name (SS-TPI mnemonic).
   String name;
   bool insecureTls;
+
+  /// Log in as a Basestation (like FlowStation) instead of a Terminal. For a
+  /// server whose operator lets this app in as a station.
+  bool basestation;
 
   /// Multi Network (used only when the server offers `mni`): home network of
   /// this terminal. 0/0 = the server's own network.
@@ -101,6 +106,7 @@ class ConnectionProfile {
         'issi': issi,
         'name': name,
         'insecureTls': insecureTls,
+        'basestation': basestation,
         'homeMcc': homeMcc,
         'homeMnc': homeMnc,
         'externalPrefix': externalPrefix,
@@ -116,6 +122,7 @@ class ConnectionProfile {
         issi: j['issi'] ?? 0,
         name: j['name'] ?? '',
         insecureTls: j['insecureTls'] ?? false,
+        basestation: j['basestation'] ?? false,
         homeMcc: j['homeMcc'] ?? 0,
         homeMnc: j['homeMnc'] ?? 0,
         externalPrefix: j['externalPrefix'] ?? '',
@@ -146,6 +153,7 @@ class Settings {
   set name(String v) => active.name = v;
   bool get insecureTls => active.insecureTls;
   set insecureTls(bool v) => active.insecureTls = v;
+  bool get basestation => active.basestation;
   int get homeMcc => active.homeMcc;
   set homeMcc(int v) => active.homeMcc = v;
   int get homeMnc => active.homeMnc;

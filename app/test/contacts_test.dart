@@ -53,4 +53,10 @@ void main() {
     final back = CallLogEntry.fromJson(e.toJson());
     expect((back.kind, back.issi, back.gssi, back.duration.inMilliseconds), (e.kind, e.issi, e.gssi, e.duration.inMilliseconds));
   });
+
+  test('a garbled sent name falls back to RadioID', () {
+    final b = ContactBook()..radioIdForTest = {2321109: (callsign: 'OE1GKS', firstName: 'G')};
+    expect(b.display(2321109, sentName: 'O\nE94i'), 'OE1GKS');
+    expect(b.display(2321109, sentName: 'OE1GKS-M'), 'OE1GKS-M');
+  });
 }

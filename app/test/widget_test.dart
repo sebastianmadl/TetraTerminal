@@ -84,6 +84,23 @@ void main() {
     expect(loaded.profiles.length, 1, reason: 'the last profile stays');
   });
 
+  test('login mode is per connection, Terminal unless set', () async {
+    Settings.secrets = MemorySecrets();
+    SharedPreferences.setMockInitialValues({});
+    final s = Settings();
+    expect(s.basestation, isFalse, reason: 'Terminal stays the default (TetraPack)');
+    final own = s.active.copy(id: 'p2')..basestation = true;
+    s.profiles.add(own);
+    await s.save();
+    final loaded = await Settings.load();
+    expect(loaded.profiles.firstWhere((p) => p.id == 'p1').basestation, isFalse);
+    expect(loaded.profiles.firstWhere((p) => p.id == 'p2').basestation, isTrue);
+    loaded.activeId = 'p2';
+    expect(loaded.basestation, isTrue);
+    // A profile saved before the option existed logs in as a Terminal.
+    expect(ConnectionProfile.fromJson({'id': 'old', 'serverUrl': 'x'}).basestation, isFalse);
+  });
+
   test('groups of other networks and the home network', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = MemorySecrets();

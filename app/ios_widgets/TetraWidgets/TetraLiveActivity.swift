@@ -9,7 +9,11 @@ struct TetraLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: TetraActivityAttributes.self) { context in
       LockScreenActivityView(status: context.state)
-        .activitySystemActionForegroundColor(Palette.tint(context.state))
+        // Frosted dark glass: the system blurs the wallpaper behind the banner,
+        // this tint lets only a little of it through (HIG: custom background
+        // only on the Lock Screen, with enough contrast).
+        .activityBackgroundTint(Color(white: 0.04).opacity(0.86))
+        .activitySystemActionForegroundColor(.white)
     } dynamicIsland: { context in
       let s = context.state
       let tint = Palette.tint(s)
@@ -122,6 +126,8 @@ struct StatePill: View {
 struct PttButton: View {
   let status: TetraStatus
   let compact: Bool
+  /// Full-width bar under the Lock Screen banner.
+  var wide = false
 
   var body: some View {
     if #available(iOS 17.0, *) {
@@ -131,7 +137,15 @@ struct PttButton: View {
         HStack(spacing: 6) {
           Image(systemName: status.transmitting ? "stop.fill" : "mic.fill")
             .font(.system(size: compact ? 18 : 15, weight: .semibold))
-          if !compact {
+          if wide {
+            Text(status.transmitting ? "Stop" : "Push to talk")
+            if status.transmitting, let end = status.txEndsAt {
+              Text(timerInterval: Date()...max(end, Date()), countsDown: true)
+                .monospacedDigit()
+                .frame(width: 44)
+                .opacity(0.85)
+            }
+          } else if !compact {
             if status.transmitting, let end = status.txEndsAt {
               Text(timerInterval: Date()...max(end, Date()), countsDown: true)
                 .monospacedDigit()
@@ -141,12 +155,12 @@ struct PttButton: View {
             }
           }
         }
-        .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(status.transmitting ? Color.white : tint)
-        .frame(width: compact ? 48 : nil, height: compact ? 48 : 36)
-        .padding(.horizontal, compact ? 0 : 14)
-        .background(status.transmitting ? tint : Color.clear, in: Capsule())
-        .glass(tint, circle: compact)
+        .font(.system(size: wide ? 17 : 15, weight: .semibold))
+        .foregroundStyle(Color.white)
+        .frame(maxWidth: wide ? .infinity : nil)
+        .frame(width: compact && !wide ? 48 : nil, height: wide ? 50 : (compact ? 48 : 36))
+        .padding(.horizontal, compact || wide ? 0 : 14)
+        .background(tint, in: wide ? AnyShape(ContainerRelativeShape()) : AnyShape(Capsule()))
       }
       .buttonStyle(.plain)
       }
@@ -155,71 +169,95 @@ struct PttButton: View {
 }
 
 extension View {
-  /// Liquid Glass on iOS 26 (when built with the iOS 26 SDK), a tinted fill before.
+  /// A tinted round or capsule fill. Not `glassEffect`: in a Live Activity
+  /// (widget extension) the glass renders nothing on the Lock Screen, so the
+  /// views it wraps disappeared. The system already draws the activity on its
+  /// own glass/material background on iOS 26.
   @ViewBuilder
   func glass(_ tint: Color, circle: Bool) -> some View {
-    #if compiler(>=6.2)
-    if #available(iOS 26.0, *) {
-      if circle {
-        self.glassEffect(.regular.tint(tint.opacity(0.25)).interactive(), in: Circle())
-      } else {
-        self.glassEffect(.regular.tint(tint.opacity(0.25)).interactive(), in: Capsule())
-      }
-    } else {
-      fallbackGlass(tint, circle: circle)
-    }
-    #else
-    fallbackGlass(tint, circle: circle)
-    #endif
-  }
-
-  @ViewBuilder
-  private func fallbackGlass(_ tint: Color, circle: Bool) -> some View {
     if circle {
-      self.background(tint.opacity(0.18), in: Circle())
+      self.background(tint.opacity(0.22), in: Circle())
     } else {
-      self.background(tint.opacity(0.18), in: Capsule())
+      self.background(tint.opacity(0.22), in: Capsule())
     }
   }
 }
 
 struct LockScreenActivityView: View {
   let status: TetraStatus
-  @Environment(\.colorScheme) private var scheme
 
+  /// Lock Screen banner, up to the 160 pt the system allows: a small header
+  /// (server + state), the talker or own callsign large with the timer, the
+  /// group, and the PTT bar. Always light-on-dark over the frosted tint.
   var body: some View {
-    let tint = Palette.tint(status, dark: scheme == .dark)
-    HStack(spacing: 12) {
-      Image(systemName: Palette.symbol(status))
-        .font(.system(size: 18, weight: .semibold))
-        .foregroundStyle(tint)
-        .frame(width: 44, height: 44)
-        .glass(tint, circle: true)
-      VStack(alignment: .leading, spacing: 2) {
-        if let talker = status.talker {
-          Text(talker).font(.headline).lineLimit(1)
-          Text(status.emergency ? "Emergency · \(status.group)" : "\(status.group) · \(status.server)")
-            .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-        } else {
-          HStack(spacing: 6) {
-            Text(status.server).font(.headline).lineLimit(1)
-            StatePill(status: status)
-          }
-          Text([status.ownLine, status.group].filter { !$0.isEmpty }.joined(separator: " · "))
-            .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+    let tint = Palette.tint(status)
+    VStack(alignment: .leading, spacing: 0) {
+      // Header: server and state.
+      HStack(spacing: 6) {
+        Image(systemName: "antenna.radiowaves.left.and.right")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(Palette.accent)
+        Text(status.server)
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(.white.opacity(0.6))
+          .lineLimit(1)
+        Spacer(minLength: 8)
+        StateBadge(status: status)
+      }
+      Spacer(minLength: 6)
+      // Main line: who talks (or who I am) and for how long.
+      HStack(alignment: .firstTextBaseline, spacing: 12) {
+        VStack(alignment: .leading, spacing: 1) {
+          Text(status.talker ?? (status.ownName?.isEmpty == false ? status.ownName! : "Standby"))
+            .font(.system(size: 26, weight: .bold, design: .rounded))
+            .foregroundStyle(status.talker == nil ? Color.white : tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+          Text(secondLine)
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(.white.opacity(0.6))
+            .lineLimit(1)
+        }
+        Spacer(minLength: 8)
+        if let since = status.talkerSince {
+          Text(since, style: .timer)
+            .font(.system(size: 34, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .frame(width: 96, alignment: .trailing)
+            .foregroundStyle(tint)
         }
       }
-      Spacer(minLength: 8)
-      if let since = status.talkerSince {
-        Text(since, style: .timer)
-          .font(.title2.weight(.semibold))
-          .monospacedDigit()
-          .multilineTextAlignment(.trailing)
-          .frame(width: 72, alignment: .trailing)
-          .foregroundStyle(tint)
-      }
-      PttButton(status: status, compact: true)
+      Spacer(minLength: 10)
+      PttButton(status: status, compact: true, wide: true)
     }
-    .padding(16)
+    .padding(14)
+    .frame(minHeight: 150)
+    .environment(\.colorScheme, .dark)
+  }
+
+  private var secondLine: String {
+    if status.talker != nil { return status.emergency ? "Emergency · \(status.group)" : status.group }
+    let issi = status.ownIssi.map { "ISSI \($0)" }
+    return [issi, status.group].compactMap { $0 }.joined(separator: " · ")
+  }
+}
+
+/// RX / TX / SOS / STANDBY / OFFLINE, as a small tinted capsule.
+struct StateBadge: View {
+  let status: TetraStatus
+  var body: some View {
+    let (label, color): (String, Color) = {
+      if status.emergency { return ("SOS", Palette.emergency) }
+      if status.transmitting { return ("TX", Palette.talk) }
+      if status.talker != nil { return ("RX", Palette.accent) }
+      return status.online ? ("STANDBY", Palette.accent) : ("OFFLINE", .gray)
+    }()
+    Text(label)
+      .font(.system(size: 11, weight: .bold))
+      .foregroundStyle(color)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 3)
+      .background(color.opacity(0.18), in: Capsule())
   }
 }

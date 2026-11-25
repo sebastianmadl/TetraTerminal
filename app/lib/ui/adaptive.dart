@@ -230,6 +230,25 @@ class Segments<T extends Object> extends StatelessWidget {
   }
 }
 
+/// A label above full-width segments, as a settings row.
+class LabeledSegments<T extends Object> extends StatelessWidget {
+  const LabeledSegments({super.key, required this.label, required this.items, required this.value, required this.onChanged});
+  final String label;
+  final Map<T, String> items;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(Tokens.gutter, 10, Tokens.gutter, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(label, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 8),
+          Segments<T>(items: items, value: value, onChanged: onChanged),
+        ]),
+      );
+}
+
 /// Bottom sheet with a list of actions (iOS action sheet / Material sheet).
 class SheetAction<T> {
   const SheetAction(this.label, this.value, {this.destructive = false, this.icon});

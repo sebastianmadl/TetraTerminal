@@ -11,7 +11,7 @@ use tetra_core::client::{self, ClientConfig, ClientEvent, Command, MessageStatus
 use tetra_core::codec::VoiceEncoder;
 use tetra_core::protocol::{self as p, CallPayload, CircularCall, GroupTransmission, Message};
 use tetra_core::sds::{self, IncomingSds, LipReason, Location};
-use tetra_core::transport::Endpoint;
+use tetra_core::transport::{BrewMode, Endpoint};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -53,16 +53,22 @@ async fn accept_terminal(l: &TcpListener) -> tokio_tungstenite::WebSocketStream<
 
 /// Same, with `X-Brew-Extensions` on the 101 (brew-server with Multi Network on).
 async fn accept_terminal_offering(l: &TcpListener, offer: Option<&'static str>) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
+    accept_login(l, "Terminal", offer).await
+}
+
+/// Discovery and upgrade, checking that both carry `X-Brew-Mode: <mode>`.
+async fn accept_login(l: &TcpListener, mode: &'static str, offer: Option<&'static str>) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
     // 1) unauthenticated discovery → challenge
     let (mut s, _) = l.accept().await.unwrap();
     let req = read_request(&mut s).await;
-    assert!(req.contains("X-Brew-Mode: Terminal"), "{req}");
+    assert!(req.contains(&format!("X-Brew-Mode: {mode}\r\n")), "{req}");
     assert!(req.contains("User-Agent: "), "User-Agent is mandatory");
     s.write_all(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Digest realm=\"brew-server\", nonce=\"n0nce\", qop=\"auth\", opaque=\"op\"\r\nContent-Length: 0\r\n\r\n").await.unwrap();
     drop(s);
     // 2) authenticated discovery → verify exactly like brew-server → session path
     let (mut s, _) = l.accept().await.unwrap();
     let req = read_request(&mut s).await;
+    assert!(req.contains(&format!("X-Brew-Mode: {mode}\r\n")), "{req}");
     let auth = req.lines().find(|l| l.starts_with("Authorization:")).expect("Authorization header");
     let ha1 = md5_hex(&format!("{ME}:brew-server:pw"));
     let ha2 = md5_hex("GET:/brew");
@@ -75,6 +81,7 @@ async fn accept_terminal_offering(l: &TcpListener, offer: Option<&'static str>) 
     tokio_tungstenite::accept_hdr_async(s, |r: &Request, mut resp: Response| {
         assert_eq!(r.uri().path(), "/brew/session/tok42");
         assert_eq!(r.headers()["Sec-WebSocket-Protocol"], "brew");
+        assert_eq!(r.headers()["X-Brew-Mode"], mode);
         resp.headers_mut().insert("Sec-WebSocket-Protocol", "brew".parse().unwrap());
         if let Some(o) = offer {
             resp.headers_mut().insert("X-Brew-Extensions", o.parse().unwrap());
@@ -119,6 +126,7 @@ async fn full_terminal_session() {
             password: "pw".into(),
             user_agent: "TetraBrewTerminal/test".into(),
             insecure_tls: false,
+            mode: Default::default(),
         },
         issi: ME,
         name: Some("SV1TEST".into()),
@@ -256,6 +264,7 @@ async fn multi_network_when_the_server_offers_mni() {
             password: "pw".into(),
             user_agent: "TetraBrewTerminal/test".into(),
             insecure_tls: false,
+            mode: Default::default(),
         },
         issi: ME,
         name: None,
@@ -294,5 +303,42 @@ async fn multi_network_when_the_server_offers_mni() {
 
     // A group of the home network carries no note.
     h.send(Command::Ptt { pressed: false, group: None, emergency: false });
+    h.send(Command::Shutdown);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn basestation_login_registers_like_a_station() {
+    let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = l.local_addr().unwrap().port();
+    let cfg = ClientConfig {
+        endpoint: Endpoint {
+            url: format!("http://127.0.0.1:{port}/brew"),
+            username: ME.to_string(),
+            password: "pw".into(),
+            user_agent: "TetraBrewTerminal/test".into(),
+            insecure_tls: false,
+            mode: BrewMode::Basestation,
+        },
+        issi: ME,
+        name: None,
+        groups: vec![TG],
+        selected_group: Some(TG),
+        default_priority: 1,
+        allow_preemption: true,
+        home_network: None,
+        group_networks: HashMap::new(),
+    };
+    let (h, mut ev) = client::spawn(cfg);
+    // brew-server offers a station its Basestation extensions, not group-access.
+    let mut ws = accept_login(&l, "Basestation", Some("dmo-position, ho")).await;
+    wait_for(&mut ev, |e| *e == ClientEvent::Connected).await;
+
+    // REGISTER with the wall-clock time, as FlowStation sends it for a radio.
+    let Message::Subscriber { kind: p::SUB_REGISTER, issi: ME, time, fraction, .. } = recv_msg(&mut ws).await else { panic!() };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    assert!(now.abs_diff(time) <= 5, "registration time {time} vs now {now}");
+    assert!(fraction < 1_000_000_000, "fraction is nanoseconds");
+    let Message::Subscriber { kind: p::SUB_AFFILIATE, groups, .. } = recv_msg(&mut ws).await else { panic!() };
+    assert_eq!(groups, vec![TG]);
     h.send(Command::Shutdown);
 }

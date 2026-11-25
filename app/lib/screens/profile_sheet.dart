@@ -56,6 +56,20 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                     FieldRow(label: 'Password', initial: p.password, obscure: true, hint: 'Stored in the keychain', onChanged: (v) => p.password = v),
                     SwitchRow(title: 'Accept self-signed certificate', subtitle: 'Lab servers only', value: p.insecureTls, onChanged: (v) => setState(() => p.insecureTls = v)),
                   ]),
+                  Section(
+                    footer: p.basestation
+                        ? 'Logs in like a FlowStation. Only if the server\'s operator lets this app in as a station.'
+                        : 'Logs in as an app. Works on every Brew server, TetraPack included.',
+                    children: [
+                      LabeledSegments<bool>(
+                        key: const Key('login-mode'),
+                        label: 'Login mode',
+                        items: const {false: 'Terminal', true: 'Basestation'},
+                        value: p.basestation,
+                        onChanged: (v) => setState(() => p.basestation = v),
+                      ),
+                    ],
+                  ),
                   Section(header: 'Radio', children: [
                     FieldRow(label: 'ISSI', initial: p.issi == 0 ? '' : '${p.issi}', number: true, validator: number, onChanged: (v) => p.issi = int.tryParse(v) ?? 0),
                     FieldRow(label: 'Talker name', initial: p.name, hint: 'Shown to others', onChanged: (v) => p.name = v.trim()),

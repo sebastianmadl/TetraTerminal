@@ -301,6 +301,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         defaultPriority: settings.defaultPriority,
         allowPreemption: settings.allowPreemption,
         insecureTls: settings.insecureTls,
+        basestation: settings.basestation,
         homeMcc: settings.homeMcc,
         homeMnc: settings.homeMnc,
         groupNetworks: _groupNetworks,
