@@ -293,3 +293,80 @@ impl TetraClient {
         self.handle.send(Command::Shutdown);
     }
 }
+
+/// Basestation control channel (only with the Basestation login mode): DGNA
+/// for this app's ISSI, see [`crate::control`].
+#[derive(Debug, Clone)]
+pub struct ControlConfig {
+    /// The Brew server URL; its host is used when `control_url` is empty.
+    pub brew_url: String,
+    /// `host`, `host:port` or a URL; empty = the Brew host. Port 9002 by default.
+    pub control_url: String,
+    /// `wss://` instead of `ws://`.
+    pub tls: bool,
+    pub insecure_tls: bool,
+    /// HTTP Basic login of `[control.users]`; empty = none.
+    pub username: String,
+    pub password: String,
+    pub issi: u32,
+    /// DGNA groups the app holds for `issi` (reported after each connect).
+    pub groups: Vec<DgnaGroupInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DgnaGroupInfo {
+    pub gssi: u32,
+    pub mnemonic: Option<String>,
+    pub attachment_mode: u8,
+}
+
+#[derive(Debug, Clone)]
+pub enum ControlAppEvent {
+    Connected,
+    Disconnected { error: Option<String> },
+    /// `attach` true: the group was assigned, false: taken away.
+    Dgna { group: DgnaGroupInfo, attach: bool },
+}
+
+pub struct TetraControl {
+    handle: crate::control::ControlHandle,
+    events: Arc<Mutex<mpsc::UnboundedReceiver<crate::control::ControlEvent>>>,
+}
+
+impl TetraControl {
+    pub fn connect(config: ControlConfig) -> Result<TetraControl, String> {
+        let url = crate::control::control_url(&config.control_url, &config.brew_url, config.tls).map_err(|e| e.to_string())?;
+        let ep = crate::control::ControlEndpoint {
+            url: url.to_string(),
+            username: config.username,
+            password: config.password,
+            user_agent: format!("TetraBrewTerminal/{}", env!("CARGO_PKG_VERSION")),
+            insecure_tls: config.insecure_tls,
+        };
+        let groups = config
+            .groups
+            .into_iter()
+            .map(|g| crate::control::DgnaGroup { gssi: g.gssi, mnemonic: g.mnemonic, attachment_mode: g.attachment_mode })
+            .collect();
+        let (handle, events) = runtime().block_on(async { crate::control::spawn(ep, config.issi, groups) });
+        Ok(TetraControl { handle, events: Arc::new(Mutex::new(events)) })
+    }
+
+    /// Next event, or `None` once the channel has shut down.
+    pub async fn next_event(&self) -> Option<ControlAppEvent> {
+        let events = self.events.clone();
+        let e = runtime().spawn(async move { events.lock().await.recv().await }).await.ok().flatten()?;
+        Some(match e {
+            crate::control::ControlEvent::Connected => ControlAppEvent::Connected,
+            crate::control::ControlEvent::Disconnected { error } => ControlAppEvent::Disconnected { error },
+            crate::control::ControlEvent::Dgna { group, attach } => ControlAppEvent::Dgna {
+                group: DgnaGroupInfo { gssi: group.gssi, mnemonic: group.mnemonic, attachment_mode: group.attachment_mode },
+                attach,
+            },
+        })
+    }
+
+    pub fn shutdown(&self) {
+        self.handle.shutdown();
+    }
+}

@@ -82,6 +82,7 @@ class _TalkgroupRow extends StatelessWidget {
         : [
             'GSSI ${t.gssi}',
             if (t.otherNetwork) m.networkName(t.mcc, t.mnc),
+            if (t.dgna) 'DGNA',
             if (access == GroupAccess.listen) 'listen only',
             if (access == GroupAccess.refused) 'not allowed',
             if (t.scan && !selected) 'scanning',

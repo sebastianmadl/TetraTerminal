@@ -86,6 +86,11 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   late final location = LocationService((loc, reason) => _client?.sendLocation(to: settings.lipDestination, location: loc, reason: reason));
 
   TetraClient? _client;
+
+  /// Basestation control channel (Basestation login mode only): DGNA.
+  TetraControl? _control;
+  bool controlOnline = false;
+  String? controlError;
   LinkState link = LinkState.offline;
   String? lastError;
 
@@ -309,6 +314,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     );
     _client = c;
     unawaited(_pump(c));
+    if (settings.basestation) await _startControl();
     if (settings.lipEnabled && settings.lipDestination > 0) {
       await location.start(Duration(seconds: settings.lipIntervalSeconds));
     }
@@ -324,6 +330,11 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> disconnect() async {
     final c = _client;
     _client = null;
+    final ctl = _control;
+    _control = null;
+    controlOnline = false;
+    controlError = null;
+    if (ctl != null) await ctl.shutdown();
     await location.stop();
     await audio.stopMic();
     if (c != null) await c.shutdown();
@@ -336,6 +347,71 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     myTxCallId = null;
     await WakelockPlus.disable();
     notifyListeners();
+  }
+
+  Future<void> _startControl() async {
+    final p = settings.active;
+    final TetraControl ctl;
+    try {
+      ctl = await TetraControl.connect(
+        config: ControlConfig(
+          brewUrl: p.serverUrl,
+          controlUrl: p.controlUrl,
+          tls: p.controlTls,
+          insecureTls: p.insecureTls,
+          username: p.controlUsername.isEmpty ? p.username : p.controlUsername,
+          password: p.controlUsername.isEmpty && p.controlPassword.isEmpty ? p.password : p.controlPassword,
+          issi: p.issi,
+          groups: [for (final t in p.talkgroups.where((t) => t.dgna)) DgnaGroupInfo(gssi: t.gssi, mnemonic: t.name, attachmentMode: t.dgnaMode)],
+        ),
+      );
+    } catch (e) {
+      controlError = '$e';
+      notifyListeners();
+      return;
+    }
+    _control = ctl;
+    unawaited(() async {
+      while (identical(_control, ctl)) {
+        final e = await ctl.nextEvent();
+        if (e == null || !identical(_control, ctl)) break;
+        switch (e) {
+          case ControlAppEvent_Connected():
+            controlOnline = true;
+            controlError = null;
+          case ControlAppEvent_Disconnected(:final error):
+            controlOnline = false;
+            controlError = error;
+          case ControlAppEvent_Dgna(:final group, :final attach):
+            await applyDgna(group.gssi, group.mnemonic, group.attachmentMode, attach: attach);
+        }
+        notifyListeners();
+      }
+    }());
+  }
+
+  /// SS-DGNA from the control channel: an assigned group is added (and
+  /// scanned, so it is affiliated); a deassigned one is removed if DGNA gave it.
+  /// A group the user had already keeps being theirs.
+  Future<void> applyDgna(int gssi, String? mnemonic, int attachmentMode, {required bool attach}) async {
+    final i = settings.talkgroups.indexWhere((t) => t.gssi == gssi);
+    if (attach) {
+      if (i < 0) {
+        settings.talkgroups.add(Talkgroup(gssi, mnemonic ?? 'TG $gssi', dgna: true, dgnaMode: attachmentMode));
+      } else {
+        final t = settings.talkgroups[i];
+        t.scan = true;
+        if (t.dgna) {
+          t.dgnaMode = attachmentMode;
+          if (mnemonic != null) t.name = mnemonic;
+        }
+      }
+    } else if (i >= 0 && settings.talkgroups[i].dgna) {
+      settings.talkgroups.removeAt(i);
+    } else {
+      return;
+    }
+    await saveTalkgroups();
   }
 
   Future<void> _pump(TetraClient c) async {

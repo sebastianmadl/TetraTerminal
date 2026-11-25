@@ -212,6 +212,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Credit(role: 'Redesign & advanced features', name: 'sebastianmadl (OE4SXM)', github: 'sebastianmadl'),
                     const SizedBox(height: 6),
                     if (m.extensions.isNotEmpty) Text('Server offers: ${m.extensions.join(', ')}', style: const TextStyle(fontSize: 11)),
+                    if (m.settings.basestation && m.link != LinkState.offline)
+                      Text('Control channel: ${m.controlOnline ? 'connected' : m.controlError ?? 'connecting'}', style: const TextStyle(fontSize: 11)),
                   ]),
                 ),
               ),

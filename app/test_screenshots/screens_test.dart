@@ -178,6 +178,16 @@ void main() {
     });
   });
 
+  testWidgets('22 edit connection, Basestation mode', (t) async {
+    final m = _model();
+    m.settings.active.basestation = true;
+    await _shot(t, '22-edit-connection-basestation', m, const HomeScreen(initialTab: 4), act: (t) async {
+      await t.tap(find.byTooltip('Edit TMO Austria'));
+      await t.pumpAndSettle();
+      await t.drag(find.text('Login mode'), const Offset(0, -260));
+    });
+  });
+
   testWidgets('10 settings dark, appearance', (t) async {
     final m = _model()..settings.appearance = 'dark';
     await _shot(t, '10-settings-appearance-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, act: (t) async {

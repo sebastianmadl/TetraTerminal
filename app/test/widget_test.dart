@@ -209,4 +209,43 @@ void main() {
     final l = await Settings.load();
     expect((l.pttAutoStopSeconds, l.pttToggle), (120, true));
   });
+
+  test('DGNA adds and removes only its own groups, and survives a restart', () async {
+    SharedPreferences.setMockInitialValues({});
+    final secrets = MemorySecrets();
+    Settings.secrets = secrets;
+    final m = TerminalModel(Settings()
+      ..issi = 2320997
+      ..talkgroups = [Talkgroup(91, 'Austria'), Talkgroup(92, 'Mine', scan: false)]
+      ..selectedGssi = 91);
+    await m.applyDgna(2329, 'Event', 1, attach: true);
+    final event = m.settings.talkgroups.firstWhere((t) => t.gssi == 2329);
+    expect((event.name, event.dgna, event.dgnaMode), ('Event', true, 1));
+    expect(m.settings.affiliatedGroups, containsAll([91, 2329]), reason: 'a DGNA group is affiliated');
+
+    await m.applyDgna(92, 'Other', 0, attach: true);
+    final mine = m.settings.talkgroups.firstWhere((t) => t.gssi == 92);
+    expect((mine.name, mine.dgna, mine.scan), ('Mine', false, true), reason: 'the user\'s own group stays theirs, now scanned');
+    await m.applyDgna(92, null, 0, attach: false);
+    expect(m.settings.talkgroups.any((t) => t.gssi == 92), isTrue, reason: 'not taken by a deassign');
+
+    final p = m.settings.active
+      ..basestation = true
+      ..controlUrl = 'ctl.example.org:9443'
+      ..controlTls = true
+      ..controlUsername = 'app1'
+      ..controlPassword = 'secret';
+    await m.settings.save();
+    expect(secrets.values[p.controlSecretKey], 'secret');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('settings.v1'), isNot(contains('secret')));
+    final l = await Settings.load();
+    final lp = l.active;
+    expect((lp.controlUrl, lp.controlTls, lp.controlUsername, lp.controlPassword), ('ctl.example.org:9443', true, 'app1', 'secret'));
+    expect(l.talkgroups.firstWhere((t) => t.gssi == 2329).dgna, isTrue);
+
+    await m.applyDgna(2329, null, 0, attach: false);
+    expect(m.settings.talkgroups.any((t) => t.gssi == 2329), isFalse);
+    expect(m.settings.affiliatedGroups, isNot(contains(2329)));
+  });
 }

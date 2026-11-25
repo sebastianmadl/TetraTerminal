@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Talkgroup {
-  Talkgroup(this.gssi, this.name, {this.scan = true, this.mcc = 0, this.mnc = 0});
+  Talkgroup(this.gssi, this.name, {this.scan = true, this.mcc = 0, this.mnc = 0, this.dgna = false, this.dgnaMode = 0});
   final int gssi;
   String name;
 
@@ -17,9 +17,23 @@ class Talkgroup {
   int mnc;
   bool get otherNetwork => mcc != 0 || mnc != 0;
 
-  Map<String, dynamic> toJson() => {'gssi': gssi, 'name': name, 'scan': scan, if (otherNetwork) 'mcc': mcc, if (otherNetwork) 'mnc': mnc};
-  static Talkgroup fromJson(Map<String, dynamic> j) =>
-      Talkgroup(j['gssi'] as int, j['name'] as String, scan: j['scan'] as bool? ?? true, mcc: j['mcc'] as int? ?? 0, mnc: j['mnc'] as int? ?? 0);
+  /// Given by the server per DGNA (Basestation mode); taken away the same way.
+  bool dgna;
+
+  /// SS-DGNA attachment mode as the server sent it, reported back unchanged.
+  int dgnaMode;
+
+  Map<String, dynamic> toJson() => {
+        'gssi': gssi,
+        'name': name,
+        'scan': scan,
+        if (otherNetwork) 'mcc': mcc,
+        if (otherNetwork) 'mnc': mnc,
+        if (dgna) 'dgna': true,
+        if (dgna) 'dgnaMode': dgnaMode,
+      };
+  static Talkgroup fromJson(Map<String, dynamic> j) => Talkgroup(j['gssi'] as int, j['name'] as String,
+      scan: j['scan'] as bool? ?? true, mcc: j['mcc'] as int? ?? 0, mnc: j['mnc'] as int? ?? 0, dgna: j['dgna'] as bool? ?? false, dgnaMode: j['dgnaMode'] as int? ?? 0);
 }
 
 /// Where passwords live: iOS Keychain / Android Keystore in the app, one
@@ -53,6 +67,10 @@ class ConnectionProfile {
     this.name = '',
     this.insecureTls = false,
     this.basestation = false,
+    this.controlUrl = '',
+    this.controlTls = false,
+    this.controlUsername = '',
+    this.controlPassword = '',
     this.homeMcc = 0,
     this.homeMnc = 0,
     this.externalPrefix = '',
@@ -76,6 +94,17 @@ class ConnectionProfile {
   /// server whose operator lets this app in as a station.
   bool basestation;
 
+  /// Basestation control channel (DGNA), only in Basestation mode: host or
+  /// host:port, empty = the Brew host on port 9002.
+  String controlUrl;
+  bool controlTls;
+
+  /// Login of `[control.users]`; empty = the Brew login.
+  String controlUsername;
+
+  /// Kept in the keychain; empty = the Brew password.
+  String controlPassword;
+
   /// Multi Network (used only when the server offers `mni`): home network of
   /// this terminal. 0/0 = the server's own network.
   int homeMcc;
@@ -87,6 +116,7 @@ class ConnectionProfile {
   int? selectedGssi;
 
   String get secretKey => 'brew.password.$id';
+  String get controlSecretKey => 'brew.control.$id';
 
   String get displayName {
     if (label.trim().isNotEmpty) return label.trim();
@@ -96,7 +126,9 @@ class ConnectionProfile {
 
   bool get isConfigured => issi > 0 && serverUrl.isNotEmpty && username.isNotEmpty;
 
-  ConnectionProfile copy({String? id}) => ConnectionProfile.fromJson(toJson(), id: id)..password = password;
+  ConnectionProfile copy({String? id}) => ConnectionProfile.fromJson(toJson(), id: id)
+    ..password = password
+    ..controlPassword = controlPassword;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -107,6 +139,9 @@ class ConnectionProfile {
         'name': name,
         'insecureTls': insecureTls,
         'basestation': basestation,
+        'controlUrl': controlUrl,
+        'controlTls': controlTls,
+        'controlUsername': controlUsername,
         'homeMcc': homeMcc,
         'homeMnc': homeMnc,
         'externalPrefix': externalPrefix,
@@ -123,6 +158,9 @@ class ConnectionProfile {
         name: j['name'] ?? '',
         insecureTls: j['insecureTls'] ?? false,
         basestation: j['basestation'] ?? false,
+        controlUrl: j['controlUrl'] ?? '',
+        controlTls: j['controlTls'] ?? false,
+        controlUsername: j['controlUsername'] ?? '',
         homeMcc: j['homeMcc'] ?? 0,
         homeMnc: j['homeMnc'] ?? 0,
         externalPrefix: j['externalPrefix'] ?? '',
@@ -217,6 +255,7 @@ class Settings {
     if (activeId == p.id) activeId = profiles.first.id;
     try {
       await secrets.delete(p.secretKey);
+      await secrets.delete(p.controlSecretKey);
     } catch (_) {}
   }
 
@@ -255,6 +294,7 @@ class Settings {
     try {
       for (final p in s.profiles) {
         p.password = await secrets.read(p.secretKey) ?? '';
+        p.controlPassword = await secrets.read(p.controlSecretKey) ?? '';
       }
       if (legacy != null && legacy.isNotEmpty) {
         s.profiles.first.password = legacy;
@@ -270,6 +310,11 @@ class Settings {
     final prefs = await SharedPreferences.getInstance();
     for (final p in profiles) {
       await secrets.write(p.secretKey, p.password);
+      if (p.controlPassword.isEmpty) {
+        await secrets.delete(p.controlSecretKey);
+      } else {
+        await secrets.write(p.controlSecretKey, p.controlPassword);
+      }
     }
     await prefs.setString(
       _key,

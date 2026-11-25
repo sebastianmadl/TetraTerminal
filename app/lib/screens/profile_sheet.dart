@@ -70,6 +70,18 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                       ),
                     ],
                   ),
+                  if (p.basestation)
+                    Section(
+                      header: 'Control channel',
+                      footer: 'For DGNA, as a FlowStation gets it. Empty fields use the Brew host on port 9002 and the Brew login; '
+                          'the login must be in the server\'s [control.users].',
+                      children: [
+                        FieldRow(label: 'Host', initial: p.controlUrl, keyboard: TextInputType.url, hint: 'Brew host:9002', onChanged: (v) => p.controlUrl = v.trim()),
+                        SwitchRow(title: 'TLS', subtitle: 'wss:// instead of ws://', value: p.controlTls, onChanged: (v) => setState(() => p.controlTls = v)),
+                        FieldRow(label: 'Username', initial: p.controlUsername, hint: 'Brew username', onChanged: (v) => p.controlUsername = v.trim()),
+                        FieldRow(label: 'Password', initial: p.controlPassword, obscure: true, hint: 'Brew password', onChanged: (v) => p.controlPassword = v),
+                      ],
+                    ),
                   Section(header: 'Radio', children: [
                     FieldRow(label: 'ISSI', initial: p.issi == 0 ? '' : '${p.issi}', number: true, validator: number, onChanged: (v) => p.issi = int.tryParse(v) ?? 0),
                     FieldRow(label: 'Talker name', initial: p.name, hint: 'Shown to others', onChanged: (v) => p.name = v.trim()),

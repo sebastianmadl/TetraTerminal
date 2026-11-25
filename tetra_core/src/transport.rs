@@ -91,7 +91,7 @@ fn tls_config(insecure: bool) -> Arc<rustls::ClientConfig> {
     Arc::new(cfg)
 }
 
-async fn open(url: &Url, insecure: bool) -> Result<Stream, ConnectError> {
+pub(crate) async fn open(url: &Url, insecure: bool) -> Result<Stream, ConnectError> {
     let host = url.host_str().ok_or_else(|| ConnectError::Url("missing host".into()))?.to_string();
     let port = url.port_or_known_default().ok_or_else(|| ConnectError::Url("missing port".into()))?;
     let tcp = TcpStream::connect((host.as_str(), port)).await?;
