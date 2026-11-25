@@ -8,6 +8,8 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:record/record.dart' hide IosAudioCategory;
 import 'package:tetra_mic/tetra_mic.dart';
 
+import 'tx_level.dart';
+
 /// 8 kHz mono PCM16 microphone capture and speaker playback.
 ///
 /// The Rust core does all ACELP work; this layer only moves raw samples.
@@ -21,7 +23,15 @@ class AudioIO {
   /// Asking Android for 8 kHz directly makes many devices resample badly
   /// (aliasing = glitches and whistles that the ACELP codec amplifies).
   static const _micRate = 16000;
-  final _decim = _Decimator2();
+  // iOS: automatic level. The raw iOS microphone is far hotter than the fixed
+  // gain was made for (it was tuned on Android, which keeps it).
+  final _decim = _Decimator2(level: _isApple ? TxLevel() : null);
+
+  /// Diagnostics: keep each transmission's microphone and encoder input and
+  /// hand them to [onTxCapture] when it ends.
+  bool captureTx = false;
+  void Function(TxCapture capture)? onTxCapture;
+  TxCapture? _capture;
 
   /// Microphone trim in dB (applies immediately, also mid-transmission).
   set micGainDb(double db) => _decim.setTrimDb(db);
@@ -164,6 +174,7 @@ class AudioIO {
       throw StateError('Microphone permission denied');
     }
     await _setDuplex(voiceProcessing);
+    final capture = _capture = captureTx ? TxCapture() : null;
     void onBytes(Uint8List bytes) {
       // Chunks can split a sample; keep any odd trailing byte for next time.
       _carry.add(bytes);
@@ -171,7 +182,10 @@ class AudioIO {
       final even = all.length & ~1;
       if (even > 0) {
         final copy = Uint8List.fromList(all.sublist(0, even));
-        final samples = _decim.process(copy.buffer.asInt16List());
+        final raw = copy.buffer.asInt16List();
+        final samples = _decim.process(raw);
+        capture?.addRaw(raw, _micRate);
+        capture?.addEncoderInput(samples, sampleRate);
         if (samples.isNotEmpty) onPcm(samples);
       }
       if (even < all.length) _carry.add(all.sublist(even));
@@ -218,6 +232,9 @@ class AudioIO {
     }
     await _setDuplex(false);
     await _applyRoute();
+    final capture = _capture;
+    _capture = null;
+    if (capture != null && !capture.isEmpty) onTxCapture?.call(capture);
   }
 
   /// Switches the session between call mode (full duplex) and normal playback.
@@ -383,12 +400,17 @@ class PlayoutQueue {
 /// 16 kHz -> 8 kHz: windowed-sinc low-pass (cut-off 3.4 kHz) then keep every
 /// second sample. Streaming: carries filter history between chunks.
 class _Decimator2 {
+  _Decimator2({this.level});
+
+  /// Automatic level instead of the fixed built-in gain (the trim still applies).
+  final TxLevel? level;
+
   static const _taps = 47;
   /// Built-in level (-4.4 dB); the user's trim is applied on top.
   static const _baseGain = 0.6;
-  double gain = _baseGain;
+  late double gain = level == null ? _baseGain : 1.0;
 
-  void setTrimDb(double db) => gain = _baseGain * math.pow(10, db / 20).toDouble();
+  void setTrimDb(double db) => gain = (level == null ? _baseGain : 1.0) * math.pow(10, db / 20).toDouble();
   final _lim = _Limiter();
   static final List<double> _h = _design();
 
@@ -412,6 +434,7 @@ class _Decimator2 {
 
   void reset() {
     _lim.reset();
+    level?.reset();
     _hist = List<double>.filled(_taps - 1, 0);
     _count = 0;
   }
@@ -433,7 +456,7 @@ class _Decimator2 {
         for (var t = 0; t < _taps; t++) {
           y += _h[t] * c[base - t];
         }
-        out.add(_lim.process(y * gain).round().clamp(-32768, 32767));
+        out.add(_lim.process((level?.process(y) ?? y) * gain).round().clamp(-32768, 32767));
       }
     }
     _count += n;

@@ -93,6 +93,9 @@ d['NSLocationWhenInUseUsageDescription'] = 'Sends your position (LIP) to dispatc
 d['NSLocationAlwaysAndWhenInUseUsageDescription'] = 'Sends your position (LIP) to dispatch.'
 d['UIBackgroundModes'] = sorted(set(d.get('UIBackgroundModes', [])) | {'audio', 'location'})
 d['NSAppTransportSecurity'] = {'NSAllowsArbitraryLoads': True}  # plain http:// Brew servers
+# Documents folder visible in the Files app (diagnostic transmission captures).
+d['UIFileSharingEnabled'] = True
+d['LSSupportsOpeningDocumentsInPlace'] = True
 with open(p, 'wb') as f:
     plistlib.dump(d, f)
 PY

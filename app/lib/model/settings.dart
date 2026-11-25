@@ -209,6 +209,9 @@ class Settings {
   /// Microphone trim in dB on top of the built-in level (-12..+12).
   double micGainDb = 0;
 
+  /// Diagnostics: save each transmission's microphone audio as WAV files.
+  bool txCapture = false;
+
   /// Keep running in the background (hear calls with the screen locked).
   bool backgroundAudio = true;
 
@@ -274,6 +277,7 @@ class Settings {
       ..defaultPriority = j['defaultPriority'] ?? 1
       ..allowPreemption = j['allowPreemption'] ?? true
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
+      ..txCapture = j['txCapture'] ?? false
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true
       ..appearance = j['appearance'] ?? 'system'
@@ -328,6 +332,7 @@ class Settings {
         'defaultPriority': defaultPriority,
         'allowPreemption': allowPreemption,
         'micGainDb': micGainDb,
+        'txCapture': txCapture,
         'backgroundAudio': backgroundAudio,
         'speakerOut': speakerOut,
         'appearance': appearance,

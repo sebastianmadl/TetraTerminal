@@ -170,6 +170,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     m.audio.micGainDb = v; // live: takes effect on the next transmission
                   },
                 ),
+                SwitchRow(
+                  title: 'Record my transmissions',
+                  subtitle: isApple(context) ? 'Diagnostics: WAV files in Files › On My iPhone › TETRA Terminal' : 'Diagnostics: WAV files in the app folder',
+                  value: s.txCapture,
+                  onChanged: (v) {
+                    setState(() => s.txCapture = v);
+                    m.audio.captureTx = v;
+                    s.save();
+                  },
+                ),
               ]),
               if (Platform.isAndroid)
                 Section(header: 'Bluetooth PTT headset', children: [

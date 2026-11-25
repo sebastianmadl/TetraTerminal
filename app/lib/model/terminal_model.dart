@@ -13,6 +13,7 @@ import '../services/audio_io.dart';
 import '../services/live_status.dart';
 import '../services/location_service.dart';
 import '../services/ptt_input.dart';
+import '../services/tx_capture_store.dart';
 import '../src/rust/api.dart';
 import 'contacts.dart';
 import 'settings.dart';
@@ -205,6 +206,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     await callLog.load();
     unawaited(contacts.startRadioId());
     audio.speaker = settings.speakerOut;
+    audio.captureTx = settings.txCapture;
+    audio.onTxCapture = TxCaptureStore.save;
     await audio.init();
     audio.micGainDb = settings.micGainDb;
     await _startPttInput();
@@ -759,6 +762,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> applySettings(Settings s) async {
     settings = s;
     audio.micGainDb = s.micGainDb;
+    audio.captureTx = s.txCapture;
     await s.save();
     await _startPttInput();
     await connect();
