@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tetra_terminal/model/settings.dart';
+import 'package:tetra_terminal/model/contacts.dart';
 import 'package:tetra_terminal/model/terminal_model.dart';
 import 'package:tetra_terminal/screens/home_screen.dart';
 import 'package:tetra_terminal/screens/messages_screen.dart';
@@ -47,7 +48,21 @@ TerminalModel _model() {
   final m = TerminalModel(_settings())
     ..link = LinkState.online
     ..extensions = ['dmo-position', 'mni']
+    ..groupAccess = {777: GroupAccess.listen}
     ..networks = parseNetworks('{"this":{"mcc":232,"mnc":5},"networks":[{"mcc":901,"mnc":1638,"name":"TetraPack","up":true},{"mcc":901,"mnc":1234,"name":"Brew North","up":false}]}');
+  m.contacts.radioIdForTest = {2320972: (callsign: 'OE1ABC', firstName: 'Anna'), 2629001: (callsign: 'DL2XY', firstName: 'Max'), 2320415: (callsign: 'OE3KLM', firstName: 'Karl')};
+  m.contacts.contacts.addAll([Contact(2320901, 'BS1 Kahlenberg', note: 'Lab radio'), Contact(2320972, 'Anna (OE1ABC)'), Contact(2320500, 'Dispatch Vienna')]);
+  final now = DateTime.now();
+  DateTime ago(int min) => now.subtract(Duration(minutes: min));
+  m.callLog.entries.addAll([
+    CallLogEntry(time: ago(2), issi: 2320972, kind: CallKind.groupHeard, gssi: 91, groupName: 'Austria', duration: const Duration(seconds: 14)),
+    CallLogEntry(time: ago(3), issi: 2320997, kind: CallKind.groupTalked, gssi: 91, groupName: 'Austria', duration: const Duration(seconds: 6)),
+    CallLogEntry(time: ago(9), issi: 2629001, kind: CallKind.groupHeard, gssi: 2324, groupName: 'TetraPack DACH', duration: const Duration(seconds: 41)),
+    CallLogEntry(time: ago(25), issi: 2320415, kind: CallKind.privateMissed),
+    CallLogEntry(time: ago(48), issi: 2320500, kind: CallKind.privateIn, duration: const Duration(minutes: 2, seconds: 3)),
+    CallLogEntry(time: ago(70), issi: 2320972, kind: CallKind.groupHeard, gssi: 9, groupName: 'Vienna local', duration: const Duration(seconds: 8), emergency: true),
+    CallLogEntry(time: now.subtract(const Duration(days: 1, hours: 2)), issi: 2629001, kind: CallKind.groupHeard, gssi: 2324, groupName: 'TetraPack DACH', duration: const Duration(seconds: 22)),
+  ]);
   return m;
 }
 
@@ -123,7 +138,17 @@ void main() {
   });
 
   testWidgets('04 keypad', (t) async {
-    await _shot(t, '04-calls-keypad', _model(), const HomeScreen(initialTab: 1));
+    await _shot(t, '04-calls-keypad', _model(), const HomeScreen(initialTab: 1), act: (t) async {
+      await t.tap(find.text('Keypad'));
+    });
+  });
+
+  testWidgets('11 recents', (t) async {
+    await _shot(t, '11-recents', _model(), const HomeScreen(initialTab: 1));
+  });
+
+  testWidgets('12 contacts', (t) async {
+    await _shot(t, '12-contacts', _model(), const HomeScreen(initialTab: 2));
   });
 
   testWidgets('05 incoming call', (t) async {
@@ -143,18 +168,18 @@ void main() {
   });
 
   testWidgets('07 settings', (t) async {
-    await _shot(t, '07-settings', _model(), const HomeScreen(initialTab: 3));
+    await _shot(t, '07-settings', _model(), const HomeScreen(initialTab: 4));
   });
 
   testWidgets('09 edit connection', (t) async {
-    await _shot(t, '09-edit-connection', _model(), const HomeScreen(initialTab: 3), act: (t) async {
+    await _shot(t, '09-edit-connection', _model(), const HomeScreen(initialTab: 4), act: (t) async {
       await t.tap(find.byTooltip('Edit TMO Austria'));
     });
   });
 
   testWidgets('10 settings dark, appearance', (t) async {
     final m = _model()..settings.appearance = 'dark';
-    await _shot(t, '10-settings-appearance-dark', m, const HomeScreen(initialTab: 3), b: Brightness.dark, act: (t) async {
+    await _shot(t, '10-settings-appearance-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, act: (t) async {
       await t.drag(find.byType(CustomScrollView), const Offset(0, -420));
     });
   });

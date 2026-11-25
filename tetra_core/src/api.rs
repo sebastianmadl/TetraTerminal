@@ -101,6 +101,9 @@ pub enum AppEvent {
     Extensions { offered: Vec<String> },
     /// Multi Network: `{"this":{"mcc","mnc"},"networks":[{"mcc","mnc","name","up"}]}`.
     Networks { json: String },
+    /// Group access: `{"groups":[{"gssi","mode","issis","rx_only","rx_only_issis"}],"managed"?,"listed"?}`,
+    /// lists holding only our ISSI (docs/Brew-Extensions.md 12.3).
+    GroupAccess { json: String },
 }
 
 fn private_info(c: &crate::calls::PrivateCall) -> PrivateCallInfo {
@@ -162,6 +165,7 @@ fn convert(e: ClientEvent) -> AppEvent {
         ClientEvent::ServerError { kind } => AppEvent::ServerError { kind },
         ClientEvent::Extensions { offered } => AppEvent::Extensions { offered },
         ClientEvent::Networks { json } => AppEvent::Networks { json },
+        ClientEvent::GroupAccess { json } => AppEvent::GroupAccess { json },
         ClientEvent::Call(c) => match c {
             CallEvent::GroupTxStarted { gssi, talker, talker_name, priority, id } => AppEvent::GroupTxStarted {
                 gssi,

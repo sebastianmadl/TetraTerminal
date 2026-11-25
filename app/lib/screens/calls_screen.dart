@@ -6,18 +6,29 @@ import '../model/terminal_model.dart';
 import '../src/rust/api.dart';
 import '../ui/adaptive.dart';
 import '../ui/theme.dart';
+import '../model/contacts.dart';
+import 'contacts_screen.dart';
 import 'home_screen.dart';
+import 'messages_screen.dart';
 
 /// Individual calls: a phone-style keypad, call options in a sheet, and the
 /// in-call screen.
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
   @override
-  State<CallsScreen> createState() => _CallsScreenState();
+  State<CallsScreen> createState() => CallsScreenState();
 }
 
-class _CallsScreenState extends State<CallsScreen> {
+class CallsScreenState extends State<CallsScreen> {
+  bool _recents = true;
   String _number = '';
+
+  /// Shows the keypad with [issi] filled in (from Recents or Contacts).
+  void openKeypad(int issi) => setState(() {
+        _recents = false;
+        _external = false;
+        _number = '$issi';
+      });
   bool _external = false; // false = TETRA (ISSI), true = phone / PBX via SIP gateway
   bool _duplex = true;
   bool _hook = true;
@@ -47,17 +58,24 @@ class _CallsScreenState extends State<CallsScreen> {
     return SafeArea(
       child: LayoutBuilder(builder: (context, box) {
         final keySize = ((box.maxWidth - 2 * 40 - 2 * 24) / 3).clamp(56.0, 80.0);
+        final top = Padding(
+          padding: const EdgeInsets.fromLTRB(Tokens.gutter, 12, Tokens.gutter, 0),
+          child: Row(children: [
+            Expanded(child: Segments<bool>(items: const {true: 'Recents', false: 'Keypad'}, value: _recents, onChanged: (v) => setState(() => _recents = v))),
+            const SizedBox(width: 8),
+            const LinkPill(),
+          ]),
+        );
+        if (_recents) return Column(children: [top, Expanded(child: RecentsList(onCall: openKeypad))]);
         return Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Tokens.gutter, 12, Tokens.gutter, 0),
-            child: Row(children: [
-              Expanded(child: Segments<bool>(items: const {false: 'TETRA', true: 'Phone'}, value: _external, onChanged: (v) => setState(() {
-                _external = v;
-                _number = '';
-              }))),
-              const SizedBox(width: 8),
-              const LinkPill(),
-            ]),
+          top,
+          const SizedBox(height: 10),
+          SizedBox(
+            width: 200,
+            child: Segments<bool>(items: const {false: 'TETRA', true: 'Phone'}, value: _external, onChanged: (v) => setState(() {
+              _external = v;
+              _number = '';
+            })),
           ),
           const Spacer(),
           Text(
@@ -230,8 +248,8 @@ class _ActiveCallState extends State<_ActiveCall> {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     if (call.state == 'connected') _connectedAt ??= DateTime.now();
-    final name = call.number != null ? (call.peerName ?? 'Phone') : (call.peerName ?? 'ISSI ${call.peer}');
-    final sub = call.number ?? (call.peerName != null ? 'ISSI ${call.peer}' : null);
+    final name = call.number != null ? (call.peerName ?? 'Phone') : m.nameOf(call.peer, sentName: call.peerName);
+    final sub = call.number ?? (name != 'ISSI ${call.peer}' ? 'ISSI ${call.peer}' : null);
     final status = switch (call.state) {
       'setup' || 'proceeding' => 'Calling…',
       'alerting' => 'Ringing…',
@@ -310,6 +328,151 @@ class _Dtmf extends StatelessWidget {
             onDigit(k);
           }),
       ],
+    );
+  }
+}
+
+/// Call log: time, callsign, group (or call type) and how long they talked.
+class RecentsList extends StatelessWidget {
+  const RecentsList({super.key, required this.onCall});
+  final void Function(int issi) onCall;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<TerminalModel>();
+    final scheme = Theme.of(context).colorScheme;
+    final entries = m.callLog.entries;
+    if (entries.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(CupertinoIcons.clock, size: 44, color: scheme.outline),
+            const SizedBox(height: 12),
+            Text('No recent calls', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('Who talked on your groups, and your own calls, show up here.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+          ]),
+        ),
+      );
+    }
+    final now = DateTime.now();
+    String day(DateTime t) {
+      final d = DateTime(t.year, t.month, t.day);
+      final diff = DateTime(now.year, now.month, now.day).difference(d).inDays;
+      if (diff == 0) return 'Today';
+      if (diff == 1) return 'Yesterday';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${t.day} ${months[t.month - 1]}';
+    }
+
+    final rows = <Widget>[];
+    String? lastDay;
+    for (final e in entries) {
+      final d = day(e.time);
+      if (d != lastDay) {
+        rows.add(Padding(
+          padding: EdgeInsets.fromLTRB(Tokens.gutter, rows.isEmpty ? 8 : 20, Tokens.gutter, 6),
+          child: Row(children: [
+            Text(d.toUpperCase(), style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, letterSpacing: .3)),
+            const Spacer(),
+            if (rows.isEmpty)
+              GestureDetector(
+                onTap: () async {
+                  final ok = await showActions<bool>(context, title: 'Clear recents?', actions: const [SheetAction('Clear recents', true, destructive: true)]);
+                  if (ok == true) {
+                    await m.callLog.clear();
+                    m.refresh();
+                  }
+                },
+                child: Text('Clear', style: TextStyle(fontSize: 15, color: scheme.primary)),
+              ),
+          ]),
+        ));
+        lastDay = d;
+      }
+      rows.add(_LogRow(e, onTap: () => _actions(context, m, e)));
+    }
+    return ListView(
+      padding: EdgeInsets.only(bottom: 16 + MediaQuery.of(context).padding.bottom),
+      children: rows,
+    );
+  }
+
+  Future<void> _actions(BuildContext context, TerminalModel m, CallLogEntry e) async {
+    if (e.kind == CallKind.groupTalked) return;
+    final name = m.nameOf(e.issi, sentName: e.sentName);
+    final contact = m.contacts.contactOf(e.issi);
+    final a = await showActions<String>(context, title: name, message: 'ISSI ${e.issi}', actions: [
+      const SheetAction('Call', 'call'),
+      const SheetAction('Message', 'message'),
+      SheetAction(contact == null ? 'Add to contacts' : 'Edit contact', 'contact'),
+    ]);
+    if (!context.mounted) return;
+    switch (a) {
+      case 'call':
+        onCall(e.issi);
+      case 'message':
+        await Navigator.push(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: e.issi, title: name)));
+      case 'contact':
+        await editContact(context, m, contact, issi: e.issi);
+    }
+  }
+}
+
+class _LogRow extends StatelessWidget {
+  const _LogRow(this.e, {required this.onTap});
+  final CallLogEntry e;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.read<TerminalModel>();
+    final scheme = Theme.of(context).colorScheme;
+    final missed = e.kind == CallKind.privateMissed;
+    final name = e.kind == CallKind.groupTalked ? 'You' : m.nameOf(e.issi, sentName: e.sentName);
+    final (IconData icon, String what) = switch (e.kind) {
+      CallKind.groupHeard => (CupertinoIcons.person_3_fill, e.groupName ?? 'TG ${e.gssi}'),
+      CallKind.groupTalked => (CupertinoIcons.mic_fill, e.groupName ?? 'TG ${e.gssi}'),
+      CallKind.privateIn => (CupertinoIcons.phone_arrow_down_left, 'Incoming call'),
+      CallKind.privateOut => (CupertinoIcons.phone_arrow_up_right, 'Outgoing call'),
+      CallKind.privateMissed => (CupertinoIcons.phone_arrow_down_left, 'Missed call'),
+    };
+    final hh = e.time.hour.toString().padLeft(2, '0'), mm = e.time.minute.toString().padLeft(2, '0');
+    final secs = e.duration.inSeconds;
+    final duration = secs <= 0 ? '' : '${secs ~/ 60}:${(secs % 60).toString().padLeft(2, '0')}';
+    final red = missed || e.emergency;
+    const tabular = [FontFeature.tabularFigures()];
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Tokens.gutter, 9, Tokens.gutter, 9),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          SizedBox(
+            width: 50,
+            child: Text('$hh:$mm', style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant, fontFeatures: tabular)),
+          ),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, letterSpacing: -.2, color: red ? Tokens.emergency : scheme.onSurface)),
+              const SizedBox(height: 2),
+              Row(children: [
+                Icon(icon, size: 13, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('${e.emergency ? 'Emergency · ' : ''}$what', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)),
+                ),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Text(duration, style: TextStyle(fontSize: 17, color: scheme.onSurfaceVariant, fontFeatures: tabular)),
+        ]),
+      ),
     );
   }
 }

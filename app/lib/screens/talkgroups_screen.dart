@@ -76,39 +76,45 @@ class _TalkgroupRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final active = m.groupActivity[t.gssi];
     final selected = t.gssi == m.selectedGssi;
+    final access = m.accessOf(t);
     final subtitle = active != null
-        ? '${active.emergency ? 'EMERGENCY · ' : ''}${active.talkerName ?? active.talker} talking'
+        ? '${active.emergency ? 'EMERGENCY · ' : ''}${m.nameOf(active.talker, sentName: active.talkerName)} talking'
         : [
             'GSSI ${t.gssi}',
             if (t.otherNetwork) m.networkName(t.mcc, t.mnc),
+            if (access == GroupAccess.listen) 'listen only',
+            if (access == GroupAccess.refused) 'not allowed',
             if (t.scan && !selected) 'scanning',
           ].join(' · ');
 
     return GestureDetector(
       onLongPress: () => editTalkgroup(context, m, t),
-      child: Tile(
-        title: t.name,
-        subtitle: subtitle,
-        leading: Icon(
-          selected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-          color: selected ? scheme.primary : scheme.outline,
-        ),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (active != null) Icon(CupertinoIcons.waveform, color: active.emergency ? Tokens.emergency : scheme.primary),
-          IconButton(
-            tooltip: t.scan ? 'Stop scanning' : 'Scan this group',
-            icon: Icon(t.scan ? CupertinoIcons.ear : CupertinoIcons.ear, color: t.scan ? scheme.primary : scheme.outline.withValues(alpha: .5)),
-            onPressed: () {
-              Haptics.select();
-              t.scan = !t.scan;
-              m.saveTalkgroups();
-            },
+      child: Opacity(
+        opacity: access == GroupAccess.refused ? .45 : 1,
+        child: Tile(
+          title: t.name,
+          subtitle: subtitle,
+          leading: Icon(
+            selected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+            color: selected ? scheme.primary : scheme.outline,
           ),
-        ]),
-        onTap: () {
-          Haptics.select();
-          m.selectGroup(t.gssi);
-        },
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (active != null) Icon(CupertinoIcons.waveform, color: active.emergency ? Tokens.emergency : scheme.primary),
+            IconButton(
+              tooltip: t.scan ? 'Stop scanning' : 'Scan this group',
+              icon: Icon(t.scan ? CupertinoIcons.ear : CupertinoIcons.ear, color: t.scan ? scheme.primary : scheme.outline.withValues(alpha: .5)),
+              onPressed: () {
+                Haptics.select();
+                t.scan = !t.scan;
+                m.saveTalkgroups();
+              },
+            ),
+          ]),
+          onTap: () {
+            Haptics.select();
+            m.selectGroup(t.gssi);
+          },
+        ),
       ),
     );
   }

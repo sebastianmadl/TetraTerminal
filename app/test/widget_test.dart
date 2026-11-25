@@ -123,6 +123,26 @@ void main() {
     expect(s['lastTalker'], 'OE1ABC', reason: 'the widget shows who spoke last');
   });
 
+  test('group access: verdicts and managed talkgroups', () {
+    var (groups, listed) = parseGroupAccess('{"groups":[{"gssi":2321,"access":"refused"},{"gssi":9,"access":"listen"},{"gssi":7,"access":"odd"}]}');
+    expect(groups, {2321: GroupAccess.refused, 9: GroupAccess.listen});
+    expect(listed, isNull);
+    final m = TerminalModel(Settings()
+      ..talkgroups = [Talkgroup(9, 'Vienna'), Talkgroup(91, 'Austria'), Talkgroup(2324, 'TP', mcc: 901, mnc: 1638)]
+      ..selectedGssi = 9);
+    m.groupAccess = groups;
+    expect(m.mayTalkOnSelected, isFalse, reason: '9 is listen only');
+    m.settings.selectedGssi = 91;
+    expect(m.mayTalkOnSelected, isTrue);
+    (groups, listed) = parseGroupAccess('{"groups":[],"managed":true,"listed":[9]}');
+    m
+      ..groupAccess = groups
+      ..managedGroups = listed;
+    expect(m.accessOf(m.settings.talkgroups[1]), GroupAccess.refused, reason: 'not listed');
+    expect(m.accessOf(m.settings.talkgroups[2]), GroupAccess.open, reason: 'groups of another network are not checked');
+    expect(parseGroupAccess('garbage').$1, isEmpty);
+  });
+
   test('SERVICE_NETWORKS is parsed with the server first', () {
     final n = parseNetworks('{"this":{"mcc":901,"mnc":9999},"networks":[{"mcc":901,"mnc":1638,"name":"TetraPack","up":true}]}');
     expect(n.map((x) => x.name), ['This server', 'TetraPack']);

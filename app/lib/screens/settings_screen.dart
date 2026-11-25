@@ -94,6 +94,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                   ],
                 ),
+              Section(
+                header: 'Contacts database',
+                footer: m.contacts.radioIdError ??
+                    'Callsigns for ISSIs from RadioID.net (DMR IDs, as used on ham TETRA networks). Your own contacts always come first.',
+                children: [
+                  Tile(
+                    title: 'RadioID.net',
+                    subtitle: _radioIdStatus(m),
+                    trailing: m.contacts.updating
+                        ? const Padding(padding: EdgeInsets.only(right: 8), child: CupertinoActivityIndicator())
+                        : TextButton(onPressed: m.contacts.updateRadioId, child: const Text('Update now')),
+                  ),
+                  SwitchRow(title: 'Update weekly', subtitle: 'In the background, when the app starts', value: m.contacts.radioIdAuto, onChanged: m.contacts.setRadioIdAuto),
+                ],
+              ),
               Section(header: 'Appearance', children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: Tokens.gutter, vertical: 10),
@@ -162,5 +177,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  String _radioIdStatus(TerminalModel m) {
+    final c = m.contacts;
+    if (c.updating) return 'Downloading…';
+    if (c.radioIdCount == 0) return 'Not loaded';
+    final n = c.radioIdCount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+    final t = c.radioIdUpdated;
+    if (t == null) return '$n IDs';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 }

@@ -55,6 +55,12 @@ pub const SERVICE_CALL_NETWORK: u8 = 0x23;
 /// Extension name in `X-Brew-Extensions`.
 pub const EXT_MNI: &str = "mni";
 
+/// Group access (brew-server extension `group-access`, docs/Brew-Extensions.md
+/// 12.3): the terminal asks with an empty message after `SUB_REGISTER` and
+/// gets the table for its own ISSI, now and on every change.
+pub const SERVICE_GROUP_ACCESS: u8 = 0x1F;
+pub const EXT_GROUP_ACCESS: &str = "group-access";
+
 /// Disconnect causes, ETSI EN 300 392-2 clause 14.8.18 (subset used here).
 pub mod cause {
     pub const NOT_DEFINED: u8 = 0;

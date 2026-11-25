@@ -9,11 +9,12 @@ import '../ui/adaptive.dart';
 import '../ui/glass.dart';
 import '../ui/theme.dart';
 import 'calls_screen.dart';
+import 'contacts_screen.dart';
 import 'messages_screen.dart';
 import 'settings_screen.dart';
 import 'talkgroups_screen.dart';
 
-/// App shell: four tabs. iOS uses the Cupertino tab bar (translucent, SF-style
+/// App shell: five tabs. iOS uses the Cupertino tab bar (translucent, SF-style
 /// glyphs), Android the Material navigation bar.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.initialTab = 0});
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late int _tab = widget.initialTab;
+  final _calls = GlobalKey<CallsScreenState>();
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final items = [
       (pick(context, Icons.cell_tower, CupertinoIcons.antenna_radiowaves_left_right), 'Radio'),
       (pick(context, Icons.call_outlined, CupertinoIcons.phone), 'Calls'),
+      (pick(context, Icons.person_outline, CupertinoIcons.person_crop_circle), 'Contacts'),
       (pick(context, Icons.chat_bubble_outline, CupertinoIcons.chat_bubble_2), 'Messages'),
       (pick(context, Icons.settings_outlined, CupertinoIcons.gear), 'Settings'),
     ];
-    const filled = [CupertinoIcons.antenna_radiowaves_left_right, CupertinoIcons.phone_fill, CupertinoIcons.chat_bubble_2_fill, CupertinoIcons.gear_solid];
+    const filled = [CupertinoIcons.antenna_radiowaves_left_right, CupertinoIcons.phone_fill, CupertinoIcons.person_crop_circle_fill, CupertinoIcons.chat_bubble_2_fill, CupertinoIcons.gear_solid];
     void select(int i) {
       Haptics.select();
       setState(() => _tab = i);
@@ -55,17 +58,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       // iOS: content runs beneath the floating glass tab bar.
       extendBody: isApple(context),
-      body: IndexedStack(index: tab, children: const [
-        TalkgroupsScreen(),
-        CallsScreen(),
-        MessagesScreen(),
-        SettingsScreen(),
+      body: IndexedStack(index: tab, children: [
+        const TalkgroupsScreen(),
+        CallsScreen(key: _calls),
+        ContactsScreen(onCall: (issi) {
+          setState(() => _tab = 1);
+          _calls.currentState?.openKeypad(issi);
+        }),
+        const MessagesScreen(),
+        const SettingsScreen(),
       ]),
       bottomNavigationBar: isApple(context)
           ? GlassTabBar(
               index: tab,
               onTap: select,
-              badges: {if (unread) 2},
+              badges: {if (unread) 3},
               items: [for (final (i, it) in items.indexed) (it.$1, filled[i], it.$2)],
             )
           : NavigationBar(
@@ -73,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onDestinationSelected: select,
               destinations: [
                 for (final (i, it) in items.indexed)
-                  NavigationDestination(icon: Badge(isLabelVisible: i == 2 && unread, smallSize: 8, child: Icon(it.$1)), label: it.$2),
+                  NavigationDestination(icon: Badge(isLabelVisible: i == 3 && unread, smallSize: 8, child: Icon(it.$1)), label: it.$2),
               ],
             ),
     );
@@ -174,7 +181,7 @@ class NowCard extends StatelessWidget {
       _ when heard != null => (
           emergency ? Tokens.emergency : scheme.primary,
           Colors.white,
-          '${emergency ? 'EMERGENCY · ' : ''}${heard.talkerName ?? 'ISSI ${heard.talker}'}${heard.talkerName != null ? ' · ${heard.talker}' : ''}',
+          '${emergency ? 'EMERGENCY · ' : ''}${m.nameOf(heard.talker, sentName: heard.talkerName)}${m.nameOf(heard.talker, sentName: heard.talkerName) != 'ISSI ${heard.talker}' ? ' · ${heard.talker}' : ''}',
           heard.since,
           CupertinoIcons.waveform,
         ),
@@ -244,7 +251,10 @@ class _PttButtonState extends State<PttButton> {
   Widget build(BuildContext context) {
     final m = context.watch<TerminalModel>();
     final scheme = Theme.of(context).colorScheme;
-    final enabled = m.link == LinkState.online;
+    final online = m.link == LinkState.online;
+    // Listen-only or refused group (server group access): no PTT, SOS still works.
+    final listenOnly = online && m.privateCall == null && !m.mayTalkOnSelected;
+    final enabled = online && !listenOnly;
     final tx = m.transmitting;
     final size = widget.compact ? 96.0 : 132.0;
     final color = !enabled ? scheme.surfaceContainerHigh : (tx ? Tokens.talk : scheme.primary);
@@ -290,9 +300,9 @@ class _PttButtonState extends State<PttButton> {
               ),
               alignment: Alignment.center,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(tx ? CupertinoIcons.mic_fill : CupertinoIcons.mic, size: widget.compact ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
+                Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: widget.compact ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
                 const SizedBox(height: 4),
-                Text(tx ? 'TALK' : 'PTT',
+                Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT'),
                     style: TextStyle(fontSize: widget.compact ? 15 : 17, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: enabled ? Colors.white : scheme.outline)),
               ]),
             ),
@@ -300,7 +310,7 @@ class _PttButtonState extends State<PttButton> {
         ),
       ),
       const Spacer(),
-      SizedBox(width: 64, child: _SosButton(enabled: enabled)),
+      SizedBox(width: 64, child: _SosButton(enabled: online)),
     ]);
   }
 }

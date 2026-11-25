@@ -27,7 +27,7 @@ class MessagesScreen extends StatelessWidget {
     }
     String label(int peer) {
       final tg = m.settings.talkgroups.where((t) => t.gssi == peer).firstOrNull;
-      return tg != null ? tg.name : 'ISSI $peer';
+      return tg != null ? tg.name : m.nameOf(peer);
     }
 
     bool isGroup(int peer) => m.settings.talkgroups.any((t) => t.gssi == peer);

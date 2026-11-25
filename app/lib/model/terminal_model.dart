@@ -11,6 +11,7 @@ import '../services/live_status.dart';
 import '../services/location_service.dart';
 import '../services/ptt_input.dart';
 import '../src/rust/api.dart';
+import 'contacts.dart';
 import 'settings.dart';
 
 enum LinkState { offline, connecting, online }
@@ -26,6 +27,9 @@ class GroupCallState {
   final String callId;
   bool get emergency => priority >= 15;
 }
+
+/// What the server lets this terminal do on a group (`group-access`).
+enum GroupAccess { open, listen, refused }
 
 enum MsgStatus { sending, sent, networkAccepted, delivered, failed, received }
 
@@ -68,6 +72,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Settings settings;
   final audio = AudioIO();
   final live = LiveStatus();
+  final contacts = ContactBook();
+  final callLog = CallLog();
+  /// Open call log entries by call id, to set the duration when they end.
+  final Map<String, CallLogEntry> _openLog = {};
+  DateTime? _privateConnectedAt;
+
+  /// Name to show for an ISSI (own contact, name sent by the radio, RadioID).
+  String nameOf(int issi, {String? sentName}) => contacts.display(issi, sentName: sentName);
   late final location = LocationService((loc, reason) => _client?.sendLocation(to: settings.lipDestination, location: loc, reason: reason));
 
   TetraClient? _client;
@@ -80,6 +92,25 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   /// Brew extensions the server offered on the current connection.
   List<String> extensions = const [];
   bool get multiNetwork => extensions.contains('mni');
+
+  /// Group access from the server (`group-access`): groups that are not open
+  /// to us, and with managed talkgroups the listed ones (null = not managed).
+  Map<int, GroupAccess> groupAccess = const {};
+  Set<int>? managedGroups;
+
+  GroupAccess accessOf(Talkgroup t) {
+    final a = groupAccess[t.gssi];
+    if (a != null) return a;
+    // Managed talkgroups: groups of another network are not checked against the list.
+    if (managedGroups != null && !t.otherNetwork && !managedGroups!.contains(t.gssi)) return GroupAccess.refused;
+    return GroupAccess.open;
+  }
+
+  /// May we talk on the selected group (PTT)? Emergency calls always pass.
+  bool get mayTalkOnSelected {
+    final t = settings.talkgroups.where((t) => t.gssi == settings.selectedGssi).firstOrNull;
+    return t == null || accessOf(t) == GroupAccess.open;
+  }
 
   /// Multi Network: the server's own network first, then the linked ones.
   List<LinkedNetwork> networks = const [];
@@ -127,8 +158,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     final call = transmitting
         ? null
         : heard ?? groupActivity[settings.selectedGssi] ?? groupActivity.values.firstOrNull;
-    String groupName(int gssi) => settings.talkgroups.where((t) => t.gssi == gssi).firstOrNull?.name ?? 'TG $gssi';
-    final talker = transmitting ? 'You' : (call == null ? null : call.talkerName ?? 'ISSI ${call.talker}');
+    final talker = transmitting ? 'You' : (call == null ? null : nameOf(call.talker, sentName: call.talkerName));
     final since = transmitting ? myTxSince : call?.since;
     if (talker != null && !transmitting) {
       _lastTalker = talker;
@@ -139,7 +169,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       'online': link == LinkState.online,
       'profile': settings.active.displayName,
       'server': settings.active.displayName,
-      'group': call != null ? groupName(call.gssi) : (selected?.name ?? (settings.selectedGssi != null ? 'TG ${settings.selectedGssi}' : 'No talkgroup')),
+      'group': call != null ? _groupName(call.gssi) : (selected?.name ?? (settings.selectedGssi != null ? 'TG ${settings.selectedGssi}' : 'No talkgroup')),
       'talker': talker,
       'talkerSince': talker == null ? null : since?.millisecondsSinceEpoch,
       'transmitting': transmitting,
@@ -155,6 +185,10 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> start() async {
     WidgetsBinding.instance.addObserver(this);
+    contacts.addListener(notifyListeners);
+    await contacts.load();
+    await callLog.load();
+    unawaited(contacts.startRadioId());
     await audio.init();
     audio.micGainDb = settings.micGainDb;
     await _startPttInput();
@@ -282,6 +316,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     if (c != null) await c.shutdown();
     link = LinkState.offline;
     groupActivity.clear();
+    _closeLog();
+    groupAccess = const {};
+    managedGroups = null;
     privateCall = null;
     myTxCallId = null;
     await WakelockPlus.disable();
@@ -295,6 +332,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       _handle(e);
     }
   }
+
+  @visibleForTesting
+  void handleEvent(AppEvent e) => _handle(e);
 
   void _handle(AppEvent e) {
     switch (e) {
@@ -310,13 +350,20 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         link = LinkState.offline;
         lastError = reason;
         groupActivity.clear();
+        _closeLog();
       case AppEvent_GroupTxStarted(:final gssi, :final talker, :final talkerName, :final priority, :final callId):
         groupActivity[gssi] = GroupCallState(gssi, talker, talkerName, priority, callId);
+        _logStart(callId, CallLogEntry(time: DateTime.now(), issi: talker, kind: CallKind.groupHeard, gssi: gssi, groupName: _groupName(gssi), sentName: talkerName, emergency: priority >= 15));
       case AppEvent_GroupTxEnded(:final gssi, :final callId):
         if (groupActivity[gssi]?.callId == callId) groupActivity.remove(gssi);
+        _logEnd(callId);
       case AppEvent_TxGranted(:final callId):
         myTxCallId = callId;
         myTxSince = DateTime.now();
+        final g = settings.selectedGssi;
+        if (privateCall == null && g != null) {
+          _logStart('tx:$callId', CallLogEntry(time: myTxSince!, issi: settings.issi, kind: CallKind.groupTalked, gssi: g, groupName: _groupName(g)));
+        }
         HapticFeedback.heavyImpact();
         _startMic();
       case AppEvent_TxDenied(:final reason):
@@ -324,13 +371,27 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         toast = 'PTT denied: $reason';
       case AppEvent_TxEnded(:final callId, :final preempted):
         if (myTxCallId == callId) myTxCallId = null;
+        _logEnd('tx:$callId');
         if (preempted) toast = 'Transmission pre-empted by a higher priority call';
         _updateMic();
       case AppEvent_PrivateCall(:final call):
+        if (!_openLog.containsKey('pc:${call.id}')) {
+          _privateConnectedAt = null;
+          _logStart('pc:${call.id}', CallLogEntry(
+              time: DateTime.now(), issi: call.peer, kind: call.incoming ? CallKind.privateMissed : CallKind.privateOut,
+              sentName: call.number ?? call.peerName, emergency: call.priority >= 15));
+        }
+        if (call.state == 'connected' && _privateConnectedAt == null) {
+          _privateConnectedAt = DateTime.now();
+          if (call.incoming) _openLog['pc:${call.id}']?.kind = CallKind.privateIn;
+        }
         privateCall = call;
         _updateMic();
       case AppEvent_PrivateCallEnded(:final callId):
         if (privateCall?.id == callId) privateCall = null;
+        final e = _openLog.remove('pc:$callId');
+        if (e != null && _privateConnectedAt != null) e.duration = DateTime.now().difference(_privateConnectedAt!);
+        callLog.changed();
         _updateMic();
       case AppEvent_AudioFocus(:final callId):
         focusCallId = callId;
@@ -362,10 +423,37 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         if (!multiNetwork) networks = const [];
       case AppEvent_Networks(:final json):
         networks = parseNetworks(json);
+      case AppEvent_GroupAccess(:final json):
+        final (groups, listed) = parseGroupAccess(json);
+        groupAccess = groups;
+        managedGroups = listed;
       case AppEvent_SubscriberProfiles():
         break;
     }
     notifyListeners();
+  }
+
+  /// Rebuild after a change made outside the model (e.g. the call log).
+  void refresh() => notifyListeners();
+
+  String _groupName(int gssi) => settings.talkgroups.where((t) => t.gssi == gssi).firstOrNull?.name ?? 'TG $gssi';
+
+  void _logStart(String key, CallLogEntry e) {
+    _openLog[key] = e;
+    callLog.add(e);
+  }
+
+  void _closeLog() {
+    for (final k in _openLog.keys.toList()) {
+      _logEnd(k);
+    }
+  }
+
+  void _logEnd(String key) {
+    final e = _openLog.remove(key);
+    if (e == null) return;
+    e.duration = DateTime.now().difference(e.time);
+    callLog.changed();
   }
 
   bool get _micWanted => myTxCallId != null || (privateCall?.state == 'connected' && privateCall!.duplex);
@@ -544,5 +632,26 @@ List<LinkedNetwork> parseNetworks(String json) {
     ];
   } catch (_) {
     return const [];
+  }
+}
+
+/// `SERVICE_GROUP_ACCESS` for a terminal (docs/Brew-Extensions.md 12.3):
+/// `{"groups":[{"gssi":N,"access":"refused"|"listen"}],"managed"?:true,"listed"?:[..]}`.
+(Map<int, GroupAccess>, Set<int>?) parseGroupAccess(String json) {
+  try {
+    final j = jsonDecode(json) as Map<String, dynamic>;
+    final groups = <int, GroupAccess>{
+      for (final g in (j['groups'] as List? ?? []).cast<Map<String, dynamic>>())
+        if (g['gssi'] is int)
+          g['gssi'] as int: switch (g['access']) {
+            'refused' => GroupAccess.refused,
+            'listen' => GroupAccess.listen,
+            _ => GroupAccess.open,
+          },
+    }..removeWhere((_, a) => a == GroupAccess.open);
+    final listed = j['managed'] == true ? {...(j['listed'] as List? ?? []).whereType<int>()} : null;
+    return (groups, listed);
+  } catch (_) {
+    return (const <int, GroupAccess>{}, null);
   }
 }

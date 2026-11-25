@@ -76,6 +76,8 @@ pub enum ClientEvent {
     /// `SERVICE_NETWORKS` (Multi Network): this server's network and the
     /// linked ones, as JSON.
     Networks { json: String },
+    /// `SERVICE_GROUP_ACCESS`: who may use which group, lists reduced to our ISSI.
+    GroupAccess { json: String },
 }
 
 #[derive(Debug)]
@@ -134,6 +136,7 @@ struct Session {
     pending_net: HashMap<Uuid, u32>,
     /// The server offered `mni` on this connection.
     mni: bool,
+    group_access: bool,
 }
 
 impl Session {
@@ -158,6 +161,7 @@ impl Session {
             pending_reports: HashMap::new(),
             pending_net: HashMap::new(),
             mni: false,
+            group_access: false,
         }
     }
 
@@ -202,6 +206,9 @@ impl Session {
             v.push(p::build_service(p::SERVICE_MS_NETWORK, &json.to_string()));
         }
         v.push(p::build_subscriber(p::SUB_REGISTER, self.cfg.issi, &[]));
+        if self.group_access {
+            v.push(p::build_service(p::SERVICE_GROUP_ACCESS, "{}"));
+        }
         v.extend(self.affiliation(p::SUB_AFFILIATE, &self.cfg.groups));
         v
     }
@@ -373,6 +380,7 @@ impl Session {
                 self.emit(ClientEvent::SubscriberProfiles { json: json.clone() })
             }
             Message::Service { kind: p::SERVICE_NETWORKS, json } if self.mni => self.emit(ClientEvent::Networks { json: json.clone() }),
+            Message::Service { kind: p::SERVICE_GROUP_ACCESS, json } if self.group_access => self.emit(ClientEvent::GroupAccess { json: json.clone() }),
             // The group's network before a GROUP_TX: the GROUP_TX carries that
             // network's GSSI, which is how the app knows the group.
             Message::Service { kind: p::SERVICE_CALL_NETWORK, .. } => {}
@@ -458,6 +466,7 @@ async fn run(cfg: ClientConfig, mut cmds: mpsc::UnboundedReceiver<Command>, even
         let mut ws = match transport::connect(&s.cfg.endpoint).await {
             Ok((ws, offered)) => {
                 s.mni = offered.iter().any(|e| e == p::EXT_MNI);
+                s.group_access = offered.iter().any(|e| e == p::EXT_GROUP_ACCESS);
                 s.emit(ClientEvent::Extensions { offered });
                 ws
             }
@@ -566,6 +575,17 @@ mod tests {
     fn without_the_offer_no_network_messages() {
         let s = session(false);
         assert_eq!(kinds(&s.registration()), vec![(p::CLASS_SUBSCRIBER, p::SUB_REGISTER), (p::CLASS_SUBSCRIBER, p::SUB_AFFILIATE)]);
+    }
+
+    #[test]
+    fn with_group_access_offered_the_table_is_asked_for_after_register() {
+        let mut s = session(false);
+        s.group_access = true;
+        assert_eq!(
+            kinds(&s.registration()),
+            vec![(p::CLASS_SUBSCRIBER, p::SUB_REGISTER), (p::CLASS_SERVICE, p::SERVICE_GROUP_ACCESS), (p::CLASS_SUBSCRIBER, p::SUB_AFFILIATE)]
+        );
+        assert_eq!(&s.registration()[1][2..], b"{}\0");
     }
 
     #[test]
