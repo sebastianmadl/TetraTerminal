@@ -205,6 +205,23 @@ void main() {
     });
   });
 
+  testWidgets('19 android contacts', (t) async {
+    await _shot(t, '19-android-contacts', _model(), const HomeScreen(initialTab: 2), p: TargetPlatform.android);
+  });
+
+  testWidgets('20 android keypad', (t) async {
+    await _shot(t, '20-android-keypad', _model(), const HomeScreen(initialTab: 1), p: TargetPlatform.android, act: (t) async {
+      await t.tap(find.text('Keypad'));
+    });
+  });
+
+  testWidgets('21 android settings footer dark', (t) async {
+    final m = _model()..settings.appearance = 'dark';
+    await _shot(t, '21-android-settings-footer-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, p: TargetPlatform.android, act: (t) async {
+      await t.drag(find.byType(CustomScrollView), const Offset(0, -6000));
+    });
+  });
+
   testWidgets('14 tab bar lens dragged', (t) async {
     TestGesture? g;
     await _shot(t, '14-tabbar-drag', _model(), const HomeScreen(initialTab: 2), act: (t) async {

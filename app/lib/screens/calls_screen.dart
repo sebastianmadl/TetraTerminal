@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -57,7 +59,11 @@ class CallsScreenState extends State<CallsScreen> {
 
     return SafeArea(
       child: LayoutBuilder(builder: (context, box) {
-        final keySize = ((box.maxWidth - 2 * 40 - 2 * 24) / 3).clamp(56.0, 80.0);
+        // Fit both the width and the height (shorter screens, taller nav bars):
+        // about 260 pt go to the controls above, the number and the margins.
+        final byWidth = (box.maxWidth - 2 * 40 - 2 * 24) / 3;
+        final byHeight = (box.maxHeight - 260) / 5 - 14;
+        final keySize = math.min(byWidth, byHeight).clamp(48.0, 80.0);
         final top = Padding(
           padding: const EdgeInsets.fromLTRB(Tokens.gutter, 12, Tokens.gutter, 0),
           child: Row(children: [
