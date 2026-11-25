@@ -211,6 +211,9 @@ class Settings {
 
   /// Keep running in the background (hear calls with the screen locked).
   bool backgroundAudio = true;
+
+  /// Loudspeaker (true) or earpiece / phone mode (false); headsets always win.
+  bool speakerOut = true;
   /// 'system', 'light' or 'dark'.
   String appearance = 'system';
   /// iOS: show the radio on the Lock Screen and in the Dynamic Island.
@@ -272,6 +275,7 @@ class Settings {
       ..allowPreemption = j['allowPreemption'] ?? true
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
       ..backgroundAudio = j['backgroundAudio'] ?? true
+      ..speakerOut = j['speakerOut'] ?? true
       ..appearance = j['appearance'] ?? 'system'
       ..liveActivity = j['liveActivity'] ?? true
       ..pttToggle = j['pttToggle'] ?? false
@@ -325,6 +329,7 @@ class Settings {
         'allowPreemption': allowPreemption,
         'micGainDb': micGainDb,
         'backgroundAudio': backgroundAudio,
+        'speakerOut': speakerOut,
         'appearance': appearance,
         'liveActivity': liveActivity,
         'pttToggle': pttToggle,

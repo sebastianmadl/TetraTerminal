@@ -271,7 +271,7 @@ class _PttButtonState extends State<PttButton> {
     }
 
     return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      const SizedBox(width: 64),
+      const SizedBox(width: 64, child: SpeakerButton()),
       const Spacer(),
       Semantics(
         button: true,
@@ -324,6 +324,45 @@ class _PttButtonState extends State<PttButton> {
       const Spacer(),
       SizedBox(width: 64, child: _SosButton(enabled: online)),
     ]);
+  }
+}
+
+/// Loudspeaker / earpiece (phone mode). A headset or Bluetooth device always
+/// wins; the choice is saved.
+class SpeakerButton extends StatelessWidget {
+  const SpeakerButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<TerminalModel>();
+    final scheme = Theme.of(context).colorScheme;
+    final on = m.settings.speakerOut;
+    return Semantics(
+      button: true,
+      toggled: on,
+      label: on ? 'Loudspeaker on. Tap for earpiece' : 'Earpiece. Tap for loudspeaker',
+      child: Tooltip(
+        message: on ? 'Loudspeaker' : 'Earpiece',
+        child: GestureDetector(
+          onTap: () {
+            Haptics.select();
+            m.setSpeakerOut(!on);
+          },
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? scheme.primaryContainer : scheme.surfaceContainerHigh),
+              alignment: Alignment.center,
+              child: Icon(on ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill, size: 24, color: on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 4),
+            Text(on ? 'Speaker' : 'Earpiece', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+          ]),
+        ),
+      ),
+    );
   }
 }
 

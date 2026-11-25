@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:record/record.dart' hide IosAudioCategory;
 
@@ -30,6 +31,11 @@ class AudioIO {
   DateTime _lastPlay = DateTime.fromMillisecondsSinceEpoch(0);
   final _carry = BytesBuilder(copy: false);
 
+  /// Loudspeaker (true) or earpiece, the "phone mode" (false). A headset or
+  /// Bluetooth device always wins over both.
+  bool speaker = true;
+  AudioSession? _session;
+
   Future<void> init() async {
     // flutter_pcm_sound sets its own AVAudioSession category in setup(), so it
     // goes first and our configuration below wins. iosAllowBackgroundAudio is
@@ -45,18 +51,8 @@ class AudioIO {
     // processing (echo cancellation), loudspeaker by default, Bluetooth headsets
     // allowed. On Android this maps to voice-communication audio.
     final session = await AudioSession.instance;
-    await session.configure(AudioSessionConfiguration(
-      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.defaultToSpeaker |
-          AVAudioSessionCategoryOptions.allowBluetooth |
-          AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-      avAudioSessionMode: AVAudioSessionMode.voiceChat,
-      androidAudioAttributes: const AndroidAudioAttributes(
-        contentType: AndroidAudioContentType.speech,
-        usage: AndroidAudioUsage.voiceCommunication,
-      ),
-      androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
-    ));
+    _session = session;
+    await session.configure(_config());
     await session.setActive(true);
     // After a phone call or Siri the session is deactivated and the output unit
     // stopped. Reactivate and, in the background, restart the silence at once,
@@ -66,8 +62,19 @@ class AudioIO {
       try {
         await session.setActive(true);
       } catch (_) {}
+      await _applyRoute();
       if (_keepAlive != null) _feedSilenceIfLow();
     });
+    // A plugin or the system can change the category or the route (headset
+    // plugged in or out, another app): put the chosen output back. Our own
+    // override is not answered, so this cannot loop.
+    session.devicesChangedEventStream.listen((_) => _applyRoute());
+    if (_isApple) {
+      AVAudioSession().routeChangeStream.listen((c) {
+        if (c.reason != AVAudioSessionRouteChangeReason.override) _applyRoute();
+      });
+    }
+    await _applyRoute();
     // ~120 ms of headroom: two Brew frames of jitter.
     await FlutterPcmSound.setFeedThreshold(sampleRate ~/ 8);
     // The plugin reports how much is really queued; keeps our estimate honest.
@@ -76,6 +83,69 @@ class AudioIO {
       if (_keepAlive != null) _feedSilenceIfLow();
     });
     _playerReady = true;
+  }
+
+  static bool get _isApple => defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// iOS: one session for simultaneous mic + speaker (full-duplex calls),
+  /// voice processing, Bluetooth headsets allowed; `defaultToSpeaker` only in
+  /// loudspeaker mode. Android: voice-communication audio.
+  AudioSessionConfiguration _config() => AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions: (speaker ? AVAudioSessionCategoryOptions.defaultToSpeaker : AVAudioSessionCategoryOptions.none) |
+            AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gainTransientMayDuck,
+      );
+
+  /// Switches between loudspeaker and earpiece at once (also mid-call).
+  Future<void> setSpeaker(bool on) async {
+    speaker = on;
+    if (!_playerReady || _session == null) return;
+    try {
+      await _session!.configure(_config());
+    } catch (_) {}
+    await _applyRoute();
+  }
+
+  bool _routing = false;
+
+  /// Puts the output where [speaker] says, unless a headset is connected.
+  Future<void> _applyRoute() async {
+    if (_session == null || _routing) return;
+    _routing = true;
+    try {
+      if (_isApple) {
+        final av = AVAudioSession();
+        final outputs = (await av.currentRoute).outputs.map((o) => o.portType).toList();
+        final o = iosOverride(speaker: speaker, outputs: outputs);
+        if (o != null) await av.overrideOutputAudioPort(o);
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        final am = AndroidAudioManager();
+        final devices = await am.getDevices(AndroidGetAudioDevicesFlags.outputs);
+        final headset = devices.any((d) => isHeadset(d.type));
+        if (headset) {
+          await am.setMode(AndroidAudioHardwareMode.normal);
+          await am.setSpeakerphoneOn(false);
+        } else if (speaker) {
+          await am.setMode(AndroidAudioHardwareMode.normal);
+          await am.setSpeakerphoneOn(true);
+        } else {
+          // Earpiece: communication mode with the speakerphone off.
+          await am.setMode(AndroidAudioHardwareMode.inCommunication);
+          await am.setSpeakerphoneOn(false);
+        }
+      }
+    } catch (_) {
+      // Routing is best effort; audio keeps playing on the current output.
+    } finally {
+      _routing = false;
+    }
   }
 
   bool get micRunning => _micSub != null;
@@ -121,6 +191,7 @@ class AudioIO {
       }
       if (even < all.length) _carry.add(all.sublist(even));
     });
+    await _applyRoute();
   }
 
   Future<void> stopMic() async {
@@ -128,6 +199,7 @@ class AudioIO {
     _micSub = null;
     _carry.clear();
     if (await _recorder.isRecording()) await _recorder.stop();
+    await _applyRoute();
   }
 
   final _queue = PlayoutQueue(sampleRate);
@@ -184,6 +256,38 @@ class AudioIO {
     await FlutterPcmSound.release();
   }
 }
+
+/// Output ports that are a headset or another external device: they always
+/// win over the loudspeaker / earpiece choice.
+const _externalPorts = {
+  AVAudioSessionPort.headphones,
+  AVAudioSessionPort.bluetoothA2dp,
+  AVAudioSessionPort.bluetoothHfp,
+  AVAudioSessionPort.bluetoothLe,
+  AVAudioSessionPort.carAudio,
+  AVAudioSessionPort.usbAudio,
+  AVAudioSessionPort.airPlay,
+  AVAudioSessionPort.lineOut,
+  AVAudioSessionPort.hdmi,
+};
+
+/// iOS output override for the current route: force the loudspeaker in
+/// loudspeaker mode (even if iOS fell back to the receiver), none in earpiece
+/// mode, and leave an external device alone (`null`: nothing to do).
+AVAudioSessionPortOverride? iosOverride({required bool speaker, required List<AVAudioSessionPort?> outputs}) {
+  if (outputs.any(_externalPorts.contains)) return AVAudioSessionPortOverride.none;
+  return speaker ? AVAudioSessionPortOverride.speaker : AVAudioSessionPortOverride.none;
+}
+
+/// Android device types that count as a headset (they win over the choice).
+bool isHeadset(AndroidAudioDeviceType t) => const {
+      AndroidAudioDeviceType.wiredHeadset,
+      AndroidAudioDeviceType.wiredHeadphones,
+      AndroidAudioDeviceType.bluetoothSco,
+      AndroidAudioDeviceType.bluetoothA2dp,
+      AndroidAudioDeviceType.usbHeadset,
+      AndroidAudioDeviceType.hearingAid,
+    }.contains(t);
 
 /// Estimates how much audio is still queued in the player, so keep-alive
 /// silence keeps it from running dry (on iOS the output unit stops when empty

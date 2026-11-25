@@ -204,6 +204,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     await contacts.load();
     await callLog.load();
     unawaited(contacts.startRadioId());
+    audio.speaker = settings.speakerOut;
     await audio.init();
     audio.micGainDb = settings.micGainDb;
     await _startPttInput();
@@ -688,6 +689,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     // No SDS-TL report for group-addressed messages: every member would answer.
     _client?.sendText(localId: id, to: to, text: text, immediate: immediate, requestReport: !isGroup);
     notifyListeners();
+  }
+
+  /// Loudspeaker or earpiece (phone mode), applied at once and saved.
+  Future<void> setSpeakerOut(bool on) async {
+    settings.speakerOut = on;
+    notifyListeners();
+    await audio.setSpeaker(on);
+    await settings.save();
   }
 
   void sendLocationNow() => location.sendNow(LipReason.user);
