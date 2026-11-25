@@ -5,6 +5,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/version.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A contact the user saved: ISSI and name.
@@ -150,7 +151,7 @@ class ContactBook extends ChangeNotifier {
 /// Downloads the RadioID CSV, keeps ID, callsign and first name, writes them
 /// to [path] as TSV and returns them. Runs in an isolate.
 Future<Map<int, RadioIdEntry>> _download(String url, String path) async {
-  final client = HttpClient()..userAgent = 'TETRA-Terminal';
+  final client = HttpClient()..userAgent = userAgent;
   try {
     final req = await client.getUrl(Uri.parse(url));
     final res = await req.close();
