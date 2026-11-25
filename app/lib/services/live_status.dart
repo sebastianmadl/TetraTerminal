@@ -13,7 +13,7 @@ class LiveStatus {
   Map<String, Object?>? _last;
   bool _unavailable = kIsWeb || !(Platform.isIOS || Platform.isAndroid);
 
-  /// The Live Activity's PTT button (native TogglePttIntent) calls [onTap].
+  /// The PTT action of the Android notification calls [onTap].
   void onTogglePtt(void Function() onTap) {
     if (_unavailable) return;
     _channel.setMethodCallHandler((call) async {

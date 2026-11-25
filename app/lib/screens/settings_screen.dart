@@ -14,7 +14,7 @@ import '../ui/theme.dart';
 import 'home_screen.dart';
 import 'profile_sheet.dart';
 
-/// Auto-stop of the Live Activity PTT (seconds; 0 = off).
+/// Auto-stop of tap-to-talk (seconds; 0 = off).
 const pttAutoStopChoices = {0: 'Off', 30: '30 s', 60: '1 min', 120: '2 min', 300: '5 min'};
 
 class SettingsScreen extends StatefulWidget {
@@ -91,7 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: m.setPttToggle,
                 ),
                 LabeledSegments<int>(
-                  label: isApple(context) ? 'Toggle and Live Activity stop after' : 'Toggle and notification stop after',
+                  label: isApple(context) ? 'Toggle mode stops after' : 'Toggle and notification stop after',
                   items: pttAutoStopChoices,
                   value: pttAutoStopChoices.containsKey(s.pttAutoStopSeconds) ? s.pttAutoStopSeconds : 60,
                   onChanged: m.setPttAutoStop,

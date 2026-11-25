@@ -220,7 +220,7 @@ class Settings {
   bool liveActivity = true;
   /// PTT button: false = hold to talk, true = tap to start and tap to stop.
   bool pttToggle = false;
-  /// Tap-to-talk (toggle mode and the Live Activity button) stops by itself
+  /// Tap-to-talk (toggle mode and the Android notification button) stops by itself
   /// after this many seconds; 0 = off.
   int pttAutoStopSeconds = 60;
 

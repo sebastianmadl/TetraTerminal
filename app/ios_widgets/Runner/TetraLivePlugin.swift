@@ -19,10 +19,6 @@ final class TetraLivePlugin: NSObject, FlutterPlugin {
   init(channel: FlutterMethodChannel) {
     self.channel = channel
     super.init()
-    // The Live Activity PTT button (TogglePttIntent) runs in this process.
-    NotificationCenter.default.addObserver(forName: .tetraTogglePtt, object: nil, queue: .main) { [weak self] _ in
-      self?.channel.invokeMethod("togglePtt", arguments: nil)
-    }
   }
 
   private var lastWidgetStatus: TetraStatus?
@@ -53,7 +49,6 @@ final class TetraLivePlugin: NSObject, FlutterPlugin {
     // The widget shows group, last talker and server; skip pure timer changes.
     var key = status
     key.talkerSince = nil
-    key.txEndsAt = nil
     if key == lastWidgetStatus { return }
     lastWidgetStatus = key
     TetraShared.saveStatus(status)
@@ -77,9 +72,7 @@ extension TetraStatus {
       lastTalker: a["lastTalker"] as? String,
       lastTalkerAt: date("lastTalkerAt"),
       ownName: a["ownName"] as? String,
-      ownIssi: (a["ownIssi"] as? NSNumber)?.intValue,
-      canTalk: a["canTalk"] as? Bool,
-      txEndsAt: date("txEndsAt"))
+      ownIssi: (a["ownIssi"] as? NSNumber)?.intValue)
   }
 }
 

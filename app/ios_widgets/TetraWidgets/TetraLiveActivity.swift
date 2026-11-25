@@ -1,4 +1,3 @@
-import AppIntents
 import ActivityKit
 import SwiftUI
 import WidgetKit
@@ -45,15 +44,11 @@ struct TetraLiveActivity: Widget {
           }
         }
         DynamicIslandExpandedRegion(.bottom) {
-          HStack(spacing: 10) {
-            Text(s.talker == nil ? s.group : s.server)
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-            Spacer(minLength: 4)
-            PttButton(status: s, compact: false)
-          }
-          .padding(.horizontal, 6)
+          Text(s.talker == nil ? s.group : s.server)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
         }
       } compactLeading: {
         TwoLines(
@@ -122,52 +117,6 @@ struct StatePill: View {
   }
 }
 
-/// Tap to transmit, tap again to stop (Live Activity buttons cannot be held).
-struct PttButton: View {
-  let status: TetraStatus
-  let compact: Bool
-  /// Full-width bar under the Lock Screen banner.
-  var wide = false
-
-  var body: some View {
-    if #available(iOS 17.0, *) {
-      if status.transmitting || status.canTalk == true {
-      let tint = status.transmitting ? Palette.talk : Palette.accent
-      Button(intent: TogglePttIntent()) {
-        HStack(spacing: 6) {
-          Image(systemName: status.transmitting ? "stop.fill" : "mic.fill")
-            .font(.system(size: compact ? 18 : 15, weight: .semibold))
-          if wide {
-            Text(status.transmitting ? "Stop" : "Push to talk")
-            if status.transmitting, let end = status.txEndsAt {
-              Text(timerInterval: Date()...max(end, Date()), countsDown: true)
-                .monospacedDigit()
-                .frame(width: 44)
-                .opacity(0.85)
-            }
-          } else if !compact {
-            if status.transmitting, let end = status.txEndsAt {
-              Text(timerInterval: Date()...max(end, Date()), countsDown: true)
-                .monospacedDigit()
-                .frame(width: 40)
-            } else {
-              Text(status.transmitting ? "Stop" : "Talk")
-            }
-          }
-        }
-        .font(.system(size: wide ? 17 : 15, weight: .semibold))
-        .foregroundStyle(Color.white)
-        .frame(maxWidth: wide ? .infinity : nil)
-        .frame(width: compact && !wide ? 48 : nil, height: wide ? 50 : (compact ? 48 : 36))
-        .padding(.horizontal, compact || wide ? 0 : 14)
-        .background(tint, in: wide ? AnyShape(ContainerRelativeShape()) : AnyShape(Capsule()))
-      }
-      .buttonStyle(.plain)
-      }
-    }
-  }
-}
-
 extension View {
   /// A tinted round or capsule fill. Not `glassEffect`: in a Live Activity
   /// (widget extension) the glass renders nothing on the Lock Screen, so the
@@ -186,9 +135,10 @@ extension View {
 struct LockScreenActivityView: View {
   let status: TetraStatus
 
-  /// Lock Screen banner, up to the 160 pt the system allows: a small header
-  /// (server + state), the talker or own callsign large with the timer, the
-  /// group, and the PTT bar. Always light-on-dark over the frosted tint.
+  /// Lock Screen banner: a small header (server + state), the talker or own
+  /// callsign large with the timer, and the group. Always light-on-dark over
+  /// the frosted tint. No PTT button: a Live Activity button could not key up
+  /// reliably, so transmitting stays in the app.
   var body: some View {
     let tint = Palette.tint(status)
     VStack(alignment: .leading, spacing: 0) {
@@ -228,11 +178,8 @@ struct LockScreenActivityView: View {
             .foregroundStyle(tint)
         }
       }
-      Spacer(minLength: 10)
-      PttButton(status: status, compact: true, wide: true)
     }
     .padding(14)
-    .frame(minHeight: 150)
     .environment(\.colorScheme, .dark)
   }
 

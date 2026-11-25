@@ -603,10 +603,10 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _autoStop;
   bool _latched = false;
 
-  /// When the Live Activity PTT stops by itself (null = no auto-stop or not latched).
+  /// When tap-to-talk stops by itself (null = no auto-stop or not latched).
   DateTime? latchedTxEndsAt;
 
-  /// Tap-to-talk (the PTT button in toggle mode and the Live Activity, whose
+  /// Tap-to-talk (the PTT button in toggle mode and the Android notification, whose
   /// buttons only take taps): the first tap keys up, the next one releases.
   /// Stops by itself after [Settings.pttAutoStopSeconds] unless that is 0.
   void togglePtt() {
