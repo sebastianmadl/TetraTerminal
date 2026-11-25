@@ -1,6 +1,3 @@
-import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -70,16 +67,27 @@ ThemeData _appleTheme(Brightness brightness) {
   );
 }
 
-/// Android: Material 3 Expressive. Tonal surfaces from the brand seed, roomy
-/// shapes (large corners, pill indicators), emphasized headlines, and the
-/// same accent and status colours as iOS.
+/// Android: Material 3, as reduced as the iOS build. Neutral surfaces,
+/// one card per section, pill indicators, emphasized headlines, and the same
+/// accent and status colours as iOS.
 ThemeData _expressiveTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
+  // Calm, neutral surfaces (like iOS): colour only for the accent and states.
   final scheme = ColorScheme.fromSeed(
     seedColor: Tokens.accent,
     brightness: brightness,
-    dynamicSchemeVariant: DynamicSchemeVariant.vibrant,
-  ).copyWith(primary: dark ? Tokens.accentDark : Tokens.accent, error: Tokens.talk);
+    dynamicSchemeVariant: DynamicSchemeVariant.neutral,
+  ).copyWith(
+    primary: dark ? Tokens.accentDark : Tokens.accent,
+    error: Tokens.talk,
+    surface: dark ? const Color(0xFF0E0F0F) : const Color(0xFFF4F5F4),
+    surfaceContainerLowest: dark ? const Color(0xFF0E0F0F) : Colors.white,
+    surfaceContainerLow: dark ? const Color(0xFF1A1C1B) : Colors.white,
+    surfaceContainer: dark ? const Color(0xFF1A1C1B) : Colors.white,
+    surfaceContainerHigh: dark ? const Color(0xFF242726) : const Color(0xFFE9EBEA),
+    surfaceContainerHighest: dark ? const Color(0xFF2E3130) : const Color(0xFFDDE0DE),
+    outlineVariant: dark ? const Color(0xFF2E3130) : const Color(0xFFE1E3E2),
+  );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: brightness);
   final text = base.textTheme;
   return base.copyWith(
@@ -99,9 +107,11 @@ ThemeData _expressiveTheme(Brightness brightness) {
       centerTitle: false,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 76,
-      backgroundColor: scheme.surfaceContainer,
-      indicatorColor: scheme.primary.withValues(alpha: dark ? .30 : .18),
+      height: 72,
+      backgroundColor: scheme.surface,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: scheme.primary.withValues(alpha: dark ? .22 : .12),
       indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
             fontSize: 12.5,
@@ -113,7 +123,7 @@ ThemeData _expressiveTheme(Brightness brightness) {
             color: s.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant,
           )),
     ),
-    cardTheme: CardThemeData(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))),
+    cardTheme: CardThemeData(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
         shape: WidgetStateProperty.all(const StadiumBorder()),
@@ -130,54 +140,4 @@ ThemeData _expressiveTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
   );
-}
-
-/// Material 3 Expressive "cookie" shape: a circle with [lobes] soft scallops
-/// (the shape library's 9- and 12-sided cookies). Used for the Android PTT.
-class CookieBorder extends OutlinedBorder {
-  const CookieBorder({this.lobes = 12, this.depth = .055, this.rotation = 0, super.side});
-  final int lobes;
-  /// Scallop depth as a fraction of the radius.
-  final double depth;
-  /// Turns (0..1), for the slow spin while transmitting.
-  final double rotation;
-
-  @override
-  EdgeInsetsGeometry get dimensions => EdgeInsets.all(side.width);
-
-  Path _path(Rect rect) {
-    final c = rect.center;
-    final r = rect.shortestSide / 2;
-    final path = Path();
-    const steps = 240;
-    for (var i = 0; i <= steps; i++) {
-      final a = 2 * math.pi * i / steps;
-      final rr = r * (1 - depth + depth * math.cos(lobes * (a + 2 * math.pi * rotation)));
-      final pt = c + Offset(math.cos(a), math.sin(a)) * rr;
-      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
-    }
-    return path..close();
-  }
-
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => _path(rect.deflate(side.width));
-
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) => _path(rect);
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    if (side.style == BorderStyle.none) return;
-    canvas.drawPath(_path(rect), side.toPaint());
-  }
-
-  @override
-  ShapeBorder scale(double t) => CookieBorder(lobes: lobes, depth: depth, rotation: rotation, side: side.scale(t));
-
-  @override
-  CookieBorder copyWith({BorderSide? side}) => CookieBorder(lobes: lobes, depth: depth, rotation: rotation, side: side ?? this.side);
-
-  @override
-  ShapeBorder? lerpFrom(ShapeBorder? a, double t) =>
-      a is CookieBorder ? CookieBorder(lobes: lobes, depth: lerpDouble(a.depth, depth, t)!, rotation: lerpDouble(a.rotation, rotation, t)!, side: side) : super.lerpFrom(a, t);
 }

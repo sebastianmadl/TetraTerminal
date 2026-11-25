@@ -19,6 +19,8 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.3.2
   path_provider: ^2.1.4
+  # Settings footer: GitHub profile links
+  url_launcher: ^6.3.1
   # Password in the iOS Keychain / Android Keystore
   flutter_secure_storage: ^9.2.2
   # SF Symbols-style icons on iOS

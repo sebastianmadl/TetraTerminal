@@ -48,25 +48,20 @@ class Section extends StatelessWidget {
         if (header != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-            child: Text(header!, style: text.labelLarge?.copyWith(color: scheme.primary)),
+            child: Text(header!, style: text.labelLarge?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ),
-        // Material 3 Expressive segmented list: every row its own tonal
-        // surface, large outer corners, small inner ones, 2 dp gaps.
-        for (var i = 0; i < children.length; i++)
-          Padding(
-            padding: EdgeInsets.only(top: i == 0 ? 0 : 2),
-            child: Material(
-              color: scheme.surfaceContainerHigh.withValues(alpha: .7),
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(i == 0 ? 24 : 6),
-                  bottom: Radius.circular(i == children.length - 1 ? 24 : 6),
-                ),
-              ),
-              child: children[i],
-            ),
-          ),
+        // One calm card per section with hairline dividers, as on iOS.
+        Material(
+          color: scheme.surfaceContainerLow,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) Divider(height: 1, thickness: 1, indent: Tokens.gutter + 4, color: scheme.outlineVariant),
+              children[i],
+            ],
+          ]),
+        ),
         if (footer != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),

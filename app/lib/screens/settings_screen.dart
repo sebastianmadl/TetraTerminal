@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../model/settings.dart';
 import '../model/terminal_model.dart';
@@ -205,7 +206,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text('TETRA Terminal v$appVersion · © 2026', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const Text('Yiassinsam / sebastianmadl (OE4SXM)'),
+                    const SizedBox(height: 6),
+                    const Credit(role: 'Creator', name: 'ysamouhos', github: 'ysamouhos'),
+                    const SizedBox(height: 10),
+                    const Credit(role: 'Redesign & advanced features', name: 'sebastianmadl (OE4SXM)', github: 'sebastianmadl'),
+                    const SizedBox(height: 6),
                     if (m.extensions.isNotEmpty) Text('Server offers: ${m.extensions.join(', ')}', style: const TextStyle(fontSize: 11)),
                   ]),
                 ),
@@ -246,4 +251,32 @@ class _LabeledSegments<T extends Object> extends StatelessWidget {
           Segments<T>(items: items, value: value, onChanged: onChanged),
         ]),
       );
+}
+
+/// Role, name and the GitHub profile link below. The link keeps the text colour
+/// (black in light, white in dark mode) and is only underlined.
+class Credit extends StatelessWidget {
+  const Credit({super.key, required this.role, required this.name, required this.github});
+  final String role;
+  final String name;
+  final String github;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final url = 'https://github.com/$github';
+    return Column(children: [
+      Text(role.toUpperCase(), style: TextStyle(color: scheme.outline, fontSize: 10.5, letterSpacing: .6, fontWeight: FontWeight.w600)),
+      Text(name, style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
+      Semantics(
+        link: true,
+        label: 'GitHub profile of $github',
+        child: GestureDetector(
+          onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          child: Text('github.com/$github',
+              style: TextStyle(color: scheme.onSurface, decoration: TextDecoration.underline, decorationColor: scheme.onSurface)),
+        ),
+      ),
+    ]);
+  }
 }

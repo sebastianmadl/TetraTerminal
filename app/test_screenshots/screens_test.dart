@@ -198,6 +198,13 @@ void main() {
     });
   });
 
+  testWidgets('18 settings footer dark', (t) async {
+    final m = _model()..settings.appearance = 'dark';
+    await _shot(t, '18-settings-footer-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, act: (t) async {
+      await t.drag(find.byType(CustomScrollView), const Offset(0, -6000));
+    });
+  });
+
   testWidgets('14 tab bar lens dragged', (t) async {
     TestGesture? g;
     await _shot(t, '14-tabbar-drag', _model(), const HomeScreen(initialTab: 2), act: (t) async {

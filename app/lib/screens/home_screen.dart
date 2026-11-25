@@ -244,16 +244,8 @@ class PttButton extends StatefulWidget {
   State<PttButton> createState() => _PttButtonState();
 }
 
-class _PttButtonState extends State<PttButton> with SingleTickerProviderStateMixin {
+class _PttButtonState extends State<PttButton> {
   bool _down = false;
-  // Android: the Expressive cookie turns slowly while transmitting.
-  late final _spin = AnimationController(vsync: this, duration: const Duration(seconds: 12));
-
-  @override
-  void dispose() {
-    _spin.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,12 +261,6 @@ class _PttButtonState extends State<PttButton> with SingleTickerProviderStateMix
 
     final toggle = m.settings.pttToggle;
     final apple = isApple(context);
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    if (!apple && tx && !reduceMotion) {
-      if (!_spin.isAnimating) _spin.repeat();
-    } else if (_spin.isAnimating) {
-      _spin.stop();
-    }
 
     void up() {
       if (!_down) return;
@@ -313,30 +299,18 @@ class _PttButtonState extends State<PttButton> with SingleTickerProviderStateMix
             scale: _down ? .95 : 1,
             duration: const Duration(milliseconds: 90),
             curve: Curves.easeOut,
-            child: AnimatedBuilder(
-              animation: _spin,
-              builder: (context, child) => AnimatedContainer(
+            child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               width: size,
               height: size,
-              decoration: apple
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color,
-                      boxShadow: [
-                        BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .40 : .10), blurRadius: tx ? 28 : 16, spreadRadius: tx ? 4 : 0, offset: const Offset(0, 6)),
-                      ],
-                    )
-                  : ShapeDecoration(
-                      shape: CookieBorder(lobes: 12, depth: tx ? .04 : .03, rotation: _spin.value / 12),
-                      color: color,
-                      shadows: [
-                        BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .35 : .12), blurRadius: tx ? 24 : 12, offset: const Offset(0, 4)),
-                      ],
-                    ),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+                boxShadow: [
+                  BoxShadow(color: (tx ? Tokens.talk : Colors.black).withValues(alpha: tx ? .40 : (apple ? .10 : .08)), blurRadius: tx ? 28 : 16, spreadRadius: tx ? 4 : 0, offset: const Offset(0, 6)),
+                ],
+              ),
               alignment: Alignment.center,
-              child: child,
-            ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: widget.compact ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
                 const SizedBox(height: 4),
