@@ -62,6 +62,7 @@ class TalkgroupsScreen extends StatelessWidget {
         ],
       ],
       bottom: const PttButton(),
+      bottomFrosted: m.showSoftPtt,
       bottomHeight: !m.showSoftPtt ? 56 : (compact ? 112 : 150),
     );
   }

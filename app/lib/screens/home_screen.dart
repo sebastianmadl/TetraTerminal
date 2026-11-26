@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -422,7 +423,7 @@ class _SosButton extends StatelessWidget {
 /// Large-title page scaffold used by every tab: title, optional trailing
 /// actions, then content.
 class TabPage extends StatelessWidget {
-  const TabPage({super.key, required this.title, this.actions = const [], required this.slivers, this.bottom, this.bottomHeight = 150});
+  const TabPage({super.key, required this.title, this.actions = const [], required this.slivers, this.bottom, this.bottomHeight = 150, this.bottomFrosted = false});
   final String title;
   final List<Widget> actions;
   final List<Widget> slivers;
@@ -430,6 +431,9 @@ class TabPage extends StatelessWidget {
 
   /// Room the floating [bottom] takes, kept free below the last row.
   final double bottomHeight;
+
+  /// A translucent, blurred bar behind [bottom] (Android, on-screen PTT).
+  final bool bottomFrosted;
 
   /// Screens lower than this (logical pixels) get the compact layout.
   static const compactHeight = 700.0;
@@ -460,6 +464,29 @@ class TabPage extends StatelessWidget {
     if (bottom == null) return scroll;
     // The PTT controls float above the content, which scrolls beneath them
     // (iOS: above the glass tab bar; Android: above the navigation bar).
+    if (bottomFrosted && !apple) {
+      return Stack(children: [
+        Positioned.fill(child: scroll),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Container(
+                padding: EdgeInsets.fromLTRB(Tokens.gutter, 10, Tokens.gutter, barInset + 10),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withValues(alpha: .62),
+                  border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: .35), width: .5)),
+                ),
+                child: bottom!,
+              ),
+            ),
+          ),
+        ),
+      ]);
+    }
     return Stack(children: [
       Positioned.fill(child: scroll),
       Positioned(left: apple ? 20 : Tokens.gutter, right: apple ? 20 : Tokens.gutter, bottom: barInset + (apple ? 14 : 10), child: bottom!),
