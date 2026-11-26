@@ -39,6 +39,14 @@ pub struct TerminalConfig {
     pub home_mnc: u16,
     /// Groups of other networks than the home network.
     pub group_networks: Vec<GroupNetwork>,
+    /// Transmit buffer in ms (180 to about 1000): voice held before sending
+    /// starts, against gaps at the base station.
+    pub tx_buffer_ms: u32,
+}
+
+/// Transmit buffer in ms -> whole 60 ms frames, within the pacer's range.
+fn tx_buffer_frames(ms: u32) -> usize {
+    ((ms as usize + 30) / 60).clamp(crate::client::TX_PRIME_FRAMES, crate::client::TX_PRIME_FRAMES_MAX)
 }
 
 /// A group that belongs to another network (Multi Network).
@@ -215,6 +223,7 @@ impl TetraClient {
             home_network: ((config.home_mcc, config.home_mnc) != (0, 0))
                 .then_some(crate::client::Mni { mcc: config.home_mcc, mnc: config.home_mnc }),
             group_networks: group_network_map(config.group_networks),
+            tx_buffer_frames: tx_buffer_frames(config.tx_buffer_ms),
         };
         let (handle, events) = runtime().block_on(async { client::spawn(cfg) });
         TetraClient { handle, events: Arc::new(Mutex::new(events)) }
@@ -368,5 +377,17 @@ impl TetraControl {
 
     pub fn shutdown(&self) {
         self.handle.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn transmit_buffer_ms_to_frames() {
+        assert_eq!(super::tx_buffer_frames(0), 3);
+        assert_eq!(super::tx_buffer_frames(180), 3);
+        assert_eq!(super::tx_buffer_frames(500), 8);
+        assert_eq!(super::tx_buffer_frames(1020), 17);
+        assert_eq!(super::tx_buffer_frames(5000), 17);
     }
 }

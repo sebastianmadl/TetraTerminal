@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
               ]),
-              Section(header: 'Audio', footer: 'In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery.', children: [
+              Section(header: 'Audio', footer: 'In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery. A larger transmit buffer delays your speech but bridges gaps on a shaky connection.', children: [
                 SwitchRow(title: 'Run in the background', value: s.backgroundAudio, onChanged: (v) => setState(() => s.backgroundAudio = v)),
                 SliderRow(
                   title: 'Mic gain',
@@ -169,6 +169,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => s.micGainDb = v);
                     m.audio.micGainDb = v; // live: takes effect on the next transmission
                   },
+                ),
+                SliderRow(
+                  title: 'Transmit buffer',
+                  valueLabel: '${s.txBufferMs} ms',
+                  value: s.txBufferMs.toDouble(),
+                  min: 180,
+                  max: 1020,
+                  divisions: 14,
+                  onChanged: (v) => setState(() => s.txBufferMs = v.round()), // applied on save (reconnect)
                 ),
                 SwitchRow(
                   title: 'Noise suppression',

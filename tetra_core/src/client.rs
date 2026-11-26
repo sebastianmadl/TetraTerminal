@@ -22,8 +22,10 @@ const VOICE_PACE: Duration = Duration::from_millis(60);
 /// Cap on queued, not-yet-sent voice frames (~1.5 s) so latency stays bounded.
 const MAX_TX_QUEUE: usize = 25;
 /// Frames held back before the first one goes out (and again after the queue
-/// ran dry), so the burst size of the phone's audio callback is covered.
-const TX_PRIME_FRAMES: usize = 3;
+/// ran dry), so the burst size of the phone's audio callback is covered. The
+/// smallest setting; the app can ask for more (up to about one second).
+pub const TX_PRIME_FRAMES: usize = 3;
+pub const TX_PRIME_FRAMES_MAX: usize = 17;
 
 /// Voice frames waiting for their 60 ms slot.
 ///
@@ -32,17 +34,28 @@ const TX_PRIME_FRAMES: usize = 3;
 /// each frame as soon as it exists leaves no reserve: the queue keeps running
 /// dry for one slot, a frame arrives late at the base station, and the radio
 /// plays the gap as a short beep. So the first frames are held until
-/// [`TX_PRIME_FRAMES`] are queued (180 ms), and the same after an underrun.
-#[derive(Default)]
+/// `prime` frames are queued ([`TX_PRIME_FRAMES`] = 180 ms by default), and
+/// the same after an underrun.
 struct VoicePacer {
     queue: VecDeque<Vec<u8>>,
     primed: bool,
+    prime: usize,
+}
+
+impl Default for VoicePacer {
+    fn default() -> Self {
+        Self::new(TX_PRIME_FRAMES)
+    }
 }
 
 impl VoicePacer {
+    fn new(prime: usize) -> Self {
+        Self { queue: VecDeque::new(), primed: false, prime: prime.clamp(TX_PRIME_FRAMES, TX_PRIME_FRAMES_MAX) }
+    }
+
     fn push(&mut self, frames: impl IntoIterator<Item = Vec<u8>>) {
         self.queue.extend(frames);
-        while self.queue.len() > MAX_TX_QUEUE {
+        while self.queue.len() > MAX_TX_QUEUE.max(self.prime + 8) {
             self.queue.pop_front();
         }
     }
@@ -50,7 +63,7 @@ impl VoicePacer {
     /// The frame for this 60 ms slot, if one may go out.
     fn next(&mut self) -> Option<Vec<u8>> {
         if !self.primed {
-            if self.queue.len() < TX_PRIME_FRAMES {
+            if self.queue.len() < self.prime {
                 return None;
             }
             self.primed = true;
@@ -98,6 +111,8 @@ pub struct ClientConfig {
     /// Groups that belong to another network than the home network (GSSI →
     /// network). Every other group is in the home network.
     pub group_networks: HashMap<u32, Mni>,
+    /// Voice frames held before sending starts (see [`VoicePacer`]).
+    pub tx_buffer_frames: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -200,13 +215,14 @@ impl Session {
             allow_preemption: cfg.allow_preemption,
         });
         engine.set_groups(cfg.groups.clone(), cfg.selected_group);
+        let tx_queue = VoicePacer::new(cfg.tx_buffer_frames);
         Self {
             cfg,
             engine,
             events,
             out: Vec::new(),
             encoder: None,
-            tx_queue: VoicePacer::default(),
+            tx_queue,
             decoders: HashMap::new(),
             sds_headers: HashMap::new(),
             next_mr: rand::random(),
@@ -610,6 +626,7 @@ mod tests {
             allow_preemption: true,
             home_network: Some(Mni { mcc: 901, mnc: 1638 }),
             group_networks: HashMap::from([(2324, Mni { mcc: 901, mnc: 9999 }), (91, Mni { mcc: 901, mnc: 1638 })]),
+            tx_buffer_frames: TX_PRIME_FRAMES,
         };
         let mut s = Session::new(cfg, tx);
         s.mni = mni;
@@ -651,6 +668,21 @@ mod tests {
         // Without the reserve the same audio leaves gaps (each one a beep on the radio).
         let raw = paced_slots(false);
         assert!(raw.windows(2).any(|w| w[1] != w[0] + 1));
+    }
+
+    #[test]
+    fn a_larger_transmit_buffer_holds_more_frames_before_sending() {
+        let mut pacer = VoicePacer::new(10);
+        pacer.push((0..9).map(|_| vec![0u8]));
+        assert!(pacer.next().is_none(), "9 of 10 frames: still holding");
+        pacer.push([vec![0u8]]);
+        assert!(pacer.next().is_some());
+        assert_eq!(VoicePacer::new(0).prime, TX_PRIME_FRAMES, "never below 180 ms");
+        assert_eq!(VoicePacer::new(100).prime, TX_PRIME_FRAMES_MAX, "never above about 1 s");
+        // The queue cap leaves room for the buffer.
+        let mut big = VoicePacer::new(TX_PRIME_FRAMES_MAX);
+        big.push((0..TX_PRIME_FRAMES_MAX + 8).map(|_| vec![0u8]));
+        assert_eq!(big.queue.len(), MAX_TX_QUEUE.max(TX_PRIME_FRAMES_MAX + 8));
     }
 
     #[test]

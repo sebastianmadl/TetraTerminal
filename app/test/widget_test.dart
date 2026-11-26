@@ -217,10 +217,12 @@ void main() {
     expect((d.noiseSuppression, d.rxLevel), (false, true));
     final s = Settings()
       ..noiseSuppression = true
-      ..rxLevel = false;
+      ..rxLevel = false
+      ..txBufferMs = 600;
     await s.save();
     final l = await Settings.load();
-    expect((l.noiseSuppression, l.rxLevel), (true, false));
+    expect((l.noiseSuppression, l.rxLevel, l.txBufferMs), (true, false, 600));
+    expect(d.txBufferMs, 180, reason: 'smallest buffer by default');
   });
 
   test('DGNA adds and removes only its own groups, and survives a restart', () async {

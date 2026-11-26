@@ -136,6 +136,7 @@ async fn full_terminal_session() {
         allow_preemption: true,
         home_network: Some(Mni { mcc: 901, mnc: 1638 }),
         group_networks: HashMap::from([(92, Mni { mcc: 901, mnc: 9999 })]),
+        tx_buffer_frames: 3,
     };
     let (h, mut ev) = client::spawn(cfg);
     let mut ws = accept_terminal(&l).await;
@@ -277,6 +278,7 @@ async fn multi_network_when_the_server_offers_mni() {
         allow_preemption: true,
         home_network: None,
         group_networks: HashMap::from([(2324, Mni { mcc: 901, mnc: 1638 })]),
+        tx_buffer_frames: 3,
     };
     let (h, mut ev) = client::spawn(cfg);
     let mut ws = accept_terminal_offering(&l, Some("dmo-position, mni")).await;
@@ -330,6 +332,7 @@ async fn basestation_login_registers_like_a_station() {
         allow_preemption: true,
         home_network: None,
         group_networks: HashMap::new(),
+        tx_buffer_frames: 3,
     };
     let (h, mut ev) = client::spawn(cfg);
     // brew-server offers a station its Basestation extensions, not group-access.

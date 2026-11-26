@@ -316,6 +316,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         homeMcc: settings.homeMcc,
         homeMnc: settings.homeMnc,
         groupNetworks: _groupNetworks,
+        txBufferMs: settings.txBufferMs,
       ),
     );
     _client = c;
