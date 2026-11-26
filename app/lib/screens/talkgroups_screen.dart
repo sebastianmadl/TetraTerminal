@@ -26,6 +26,9 @@ class TalkgroupsScreen extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
     final title = m.settings.name.isNotEmpty ? m.settings.name : (m.settings.issi > 0 ? 'ISSI ${m.settings.issi}' : 'Radio');
 
+    final floating = m.showSoftPtt || m.settings.showSosButton || m.settings.showSpeakerButton;
+    final bottomHeight = !m.showSoftPtt ? 56.0 : (compact ? 112.0 : 150.0);
+
     return TabPage(
       title: title,
       subtitle: m.settings.active.displayName,
@@ -57,13 +60,18 @@ class TalkgroupsScreen extends StatelessWidget {
             ),
           )
         else ...[
-          const SliverToBoxAdapter(child: LastTalkers()),
+          // As many rows as fit between the cards above and the PTT controls.
+          SliverLayoutBuilder(builder: (context, c) {
+            final below = 16 + MediaQuery.of(context).padding.bottom + (floating ? bottomHeight : 0);
+            final room = c.viewportMainAxisExtent - c.precedingScrollExtent - LastTalkers.headerHeight - below;
+            return SliverToBoxAdapter(child: LastTalkers(count: (room / LastTalkers.rowHeight).floor().clamp(2, 12)));
+          }),
         ],
       ],
       // Hardware PTT with the SOS and loudspeaker buttons hidden: nothing floats.
-      bottom: m.showSoftPtt || m.settings.showSosButton || m.settings.showSpeakerButton ? const PttButton() : null,
+      bottom: floating ? const PttButton() : null,
       bottomFrosted: m.showSoftPtt,
-      bottomHeight: !m.showSoftPtt ? 56 : (compact ? 112 : 150),
+      bottomHeight: bottomHeight,
     );
   }
 }
@@ -267,8 +275,14 @@ class _GroupMenuRow extends StatelessWidget {
 
 /// The last five talkers on the groups: time, callsign and name, group, how long.
 class LastTalkers extends StatelessWidget {
-  const LastTalkers({super.key});
-  static const count = 5;
+  const LastTalkers({super.key, this.count = 5});
+
+  /// Rows shown at most.
+  final int count;
+  static const rowHeight = 44.0;
+
+  /// The caption above the rows, with its padding.
+  static const headerHeight = 44.0;
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +302,7 @@ class LastTalkers extends StatelessWidget {
             : Column(children: [
                 for (final (i, e) in rows.indexed)
                   Container(
-                    height: 44,
+                    height: rowHeight,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: .35), width: .5))),
                     child: Row(children: [

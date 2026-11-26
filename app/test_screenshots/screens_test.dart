@@ -64,6 +64,8 @@ TerminalModel _model() {
     CallLogEntry(time: ago(48), issi: 2320500, kind: CallKind.privateIn, duration: const Duration(minutes: 2, seconds: 3)),
     CallLogEntry(time: ago(70), issi: 2320972, kind: CallKind.groupHeard, gssi: 9, groupName: 'Vienna local', duration: const Duration(seconds: 8), emergency: true),
     CallLogEntry(time: now.subtract(const Duration(days: 1, hours: 2)), issi: 2629001, kind: CallKind.groupHeard, gssi: 2324, groupName: 'TetraPack DACH', duration: const Duration(seconds: 22)),
+    for (var i = 0; i < 6; i++)
+      CallLogEntry(time: now.subtract(Duration(days: 1, hours: 3 + i)), issi: i.isEven ? 2320972 : 2629001, kind: CallKind.groupHeard, gssi: i.isEven ? 91 : 2324, groupName: i.isEven ? 'Austria' : 'TetraPack DACH', duration: Duration(seconds: 9 + 7 * i)),
   ]);
   return m;
 }
