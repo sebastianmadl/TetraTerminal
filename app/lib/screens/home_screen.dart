@@ -282,7 +282,7 @@ class _PttButtonState extends State<PttButton> {
     }
 
     return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      SizedBox(width: slim ? 44 : 64, child: SpeakerButton(slim: slim || !apple, size: slim ? 40 : 56)),
+      SizedBox(width: slim ? 44 : 64, child: m.settings.showSpeakerButton ? SpeakerButton(slim: slim || !apple, size: slim ? 40 : 56) : null),
       const Spacer(),
       // Hardware PTT only (Android setting): no button, the status card shows who talks.
       if (m.showSoftPtt)
@@ -335,7 +335,7 @@ class _PttButtonState extends State<PttButton> {
         ),
       ),
       const Spacer(),
-      SizedBox(width: slim ? 44 : 64, child: _SosButton(enabled: online, size: slim ? 40 : 56)),
+      SizedBox(width: slim ? 44 : 64, child: m.settings.showSosButton ? _SosButton(enabled: online, size: slim ? 40 : 56) : null),
     ]);
   }
 }

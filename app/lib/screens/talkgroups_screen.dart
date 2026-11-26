@@ -61,7 +61,8 @@ class TalkgroupsScreen extends StatelessWidget {
           const SliverToBoxAdapter(child: LastTalkers()),
         ],
       ],
-      bottom: const PttButton(),
+      // Hardware PTT with the SOS and loudspeaker buttons hidden: nothing floats.
+      bottom: m.showSoftPtt || m.settings.showSosButton || m.settings.showSpeakerButton ? const PttButton() : null,
       bottomFrosted: m.showSoftPtt,
       bottomHeight: !m.showSoftPtt ? 56 : (compact ? 112 : 150),
     );

@@ -294,6 +294,19 @@ void main() {
     expect((await old({'pocPttEnabled': true})).pocProfile, 'hytera-p60');
   });
 
+  test('SOS and loudspeaker buttons: shown by default, the choice is saved', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final d = await Settings.load();
+    expect((d.showSosButton, d.showSpeakerButton), (true, true));
+    d
+      ..showSosButton = false
+      ..showSpeakerButton = false;
+    await d.save();
+    final l = await Settings.load();
+    expect((l.showSosButton, l.showSpeakerButton), (false, false));
+  });
+
   test('the knob steps through the talkgroups and wraps around', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = MemorySecrets();

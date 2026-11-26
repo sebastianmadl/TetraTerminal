@@ -288,6 +288,9 @@ class Settings {
   int knobPrevKey = 0;
   /// Android: the on-screen PTT button (off on radios with a hardware PTT).
   bool showPttButton = true;
+  /// The round SOS and loudspeaker buttons next to the PTT.
+  bool showSosButton = true;
+  bool showSpeakerButton = true;
 
   /// Speak the talkgroup name when the knob changes it (device language).
   bool announceGroup = true;
@@ -363,6 +366,8 @@ class Settings {
       ..knobNextKey = j['knobNextKey'] ?? 0
       ..knobPrevKey = j['knobPrevKey'] ?? 0
       ..showPttButton = j['showPttButton'] ?? true
+      ..showSosButton = j['showSosButton'] ?? true
+      ..showSpeakerButton = j['showSpeakerButton'] ?? true
       ..announceGroup = j['announceGroup'] ?? true;
     final list = j['profiles'] as List?;
     // Up to 1.3 there was one login stored flat; it becomes the first profile.
@@ -434,6 +439,8 @@ class Settings {
         'knobNextKey': knobNextKey,
         'knobPrevKey': knobPrevKey,
         'showPttButton': showPttButton,
+        'showSosButton': showSosButton,
+        'showSpeakerButton': showSpeakerButton,
         'announceGroup': announceGroup,
       }),
     );

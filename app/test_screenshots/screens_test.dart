@@ -182,6 +182,24 @@ void main() {
     await _shot(t, '27-android-radio-small', m, const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 500));
   });
 
+  testWidgets('29 android radio on a small PoC screen, no floating buttons', (t) async {
+    final m = _model();
+    m.settings
+      ..showPttButton = false
+      ..pocPttEnabled = true
+      ..showSosButton = false
+      ..showSpeakerButton = false;
+    await _shot(t, '29-android-radio-small-bare', m, const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 500));
+  });
+
+  testWidgets('30 radio without SOS and loudspeaker buttons', (t) async {
+    final m = _model();
+    m.settings
+      ..showSosButton = false
+      ..showSpeakerButton = false;
+    await _shot(t, '30-radio-ptt-only', m, const HomeScreen());
+  });
+
   testWidgets('28 android radio on a small PoC screen, on-screen PTT', (t) async {
     await _shot(t, '28-android-radio-small-ptt', _model(), const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 500));
   });

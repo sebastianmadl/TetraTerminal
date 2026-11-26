@@ -78,6 +78,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Section(children: [Tile(title: 'Status', trailing: LinkPill())]),
               Section(header: 'Radio', children: [
+                SwitchRow(title: 'SOS button', subtitle: 'The emergency button on the radio screen', value: s.showSosButton, onChanged: (v) => setState(() => s.showSosButton = v)),
+                SwitchRow(title: 'Loudspeaker button', subtitle: 'Switches between loudspeaker and earpiece', value: s.showSpeakerButton, onChanged: (v) => setState(() => s.showSpeakerButton = v)),
                 SliderRow(
                   title: 'Default priority',
                   valueLabel: 'P${s.defaultPriority}',
