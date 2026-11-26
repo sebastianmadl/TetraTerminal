@@ -192,12 +192,13 @@ class NowCard extends StatelessWidget {
       _ => (scheme.surfaceContainerLow, scheme.onSurface, m.link == LinkState.online ? 'Channel free' : 'Not connected', null, CupertinoIcons.circle),
     };
     final heardOther = heard != null && heard.gssi != m.selectedGssi;
+    final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
       margin: const EdgeInsets.symmetric(horizontal: Tokens.gutter),
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      padding: compact ? const EdgeInsets.fromLTRB(16, 10, 16, 10) : const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Tokens.radiusLarge)),
       child: DefaultTextStyle.merge(
         style: TextStyle(color: fg),
@@ -219,7 +220,7 @@ class NowCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: Text(m.networkName(tg.mcc, tg.mnc), style: text.bodySmall?.copyWith(color: fg.withValues(alpha: .75))),
             ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 6 : 12),
           Row(children: [
             Icon(icon, size: 18, color: fg),
             const SizedBox(width: 8),
@@ -260,7 +261,10 @@ class _PttButtonState extends State<PttButton> {
     final listenOnly = online && m.privateCall == null && !m.mayTalkOnSelected;
     final enabled = online && !listenOnly;
     final tx = m.transmitting;
-    final size = widget.compact ? 96.0 : 132.0;
+    final small = widget.compact || MediaQuery.sizeOf(context).height < TabPage.compactHeight;
+    final size = small ? 96.0 : 132.0;
+    // Hardware PTT only: a slim row, the screen belongs to the content.
+    final slim = !m.showSoftPtt;
     final color = !enabled ? scheme.surfaceContainerHigh : (tx ? Tokens.talk : scheme.primary);
 
     final toggle = m.settings.pttToggle;
@@ -275,16 +279,16 @@ class _PttButtonState extends State<PttButton> {
     }
 
     return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      const SizedBox(width: 64, child: SpeakerButton()),
+      SizedBox(width: slim ? 44 : 64, child: SpeakerButton(slim: slim)),
       const Spacer(),
       if (!m.showSoftPtt)
         // Hardware PTT only (Android setting): a small status pill instead of the button.
         AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(color: tx ? Tokens.talk : scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(22)),
           child: Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT KEY'),
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: tx ? Colors.white : scheme.onSurfaceVariant)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: tx ? Colors.white : scheme.onSurfaceVariant)),
         )
       else
       Semantics(
@@ -326,17 +330,17 @@ class _PttButtonState extends State<PttButton> {
               ),
               alignment: Alignment.center,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: widget.compact ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
+                Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: small ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
                 const SizedBox(height: 4),
                 Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT'),
-                    style: TextStyle(fontSize: widget.compact ? 15 : 17, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: enabled ? Colors.white : scheme.outline)),
+                    style: TextStyle(fontSize: small ? 15 : 17, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: enabled ? Colors.white : scheme.outline)),
               ]),
             ),
           ),
         ),
       ),
       const Spacer(),
-      SizedBox(width: 64, child: _SosButton(enabled: online)),
+      SizedBox(width: slim ? 44 : 64, child: _SosButton(enabled: online, size: slim ? 40 : 56)),
     ]);
   }
 }
@@ -344,7 +348,10 @@ class _PttButtonState extends State<PttButton> {
 /// Loudspeaker / earpiece (phone mode). A headset or Bluetooth device always
 /// wins; the choice is saved.
 class SpeakerButton extends StatelessWidget {
-  const SpeakerButton({super.key});
+  const SpeakerButton({super.key, this.slim = false});
+
+  /// Small and without the caption (hardware PTT layout).
+  final bool slim;
 
   @override
   Widget build(BuildContext context) {
@@ -365,14 +372,16 @@ class SpeakerButton extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 56,
-              height: 56,
+              width: slim ? 40 : 56,
+              height: slim ? 40 : 56,
               decoration: BoxDecoration(shape: BoxShape.circle, color: on ? scheme.primaryContainer : scheme.surfaceContainerHigh),
               alignment: Alignment.center,
-              child: Icon(on ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill, size: 24, color: on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+              child: Icon(on ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill, size: slim ? 18 : 24, color: on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
             ),
-            const SizedBox(height: 4),
-            Text(on ? 'Speaker' : 'Earpiece', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+            if (!slim) ...[
+              const SizedBox(height: 4),
+              Text(on ? 'Speaker' : 'Earpiece', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+            ],
           ]),
         ),
       ),
@@ -381,8 +390,9 @@ class SpeakerButton extends StatelessWidget {
 }
 
 class _SosButton extends StatelessWidget {
-  const _SosButton({required this.enabled});
+  const _SosButton({required this.enabled, this.size = 56});
   final bool enabled;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -402,11 +412,11 @@ class _SosButton extends StatelessWidget {
             ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hold the SOS button to talk with emergency priority')))
             : null,
         child: Container(
-          width: 56,
-          height: 56,
+          width: size,
+          height: size,
           decoration: BoxDecoration(shape: BoxShape.circle, color: enabled ? Tokens.emergency : Theme.of(context).colorScheme.surfaceContainerHigh),
           alignment: Alignment.center,
-          child: const Text('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: .5)),
+          child: Text('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size < 56 ? 12 : 15, letterSpacing: .5)),
         ),
       ),
     );
@@ -421,6 +431,9 @@ class TabPage extends StatelessWidget {
   final List<Widget> actions;
   final List<Widget> slivers;
   final Widget? bottom;
+
+  /// Screens lower than this (logical pixels) get the compact layout.
+  static const compactHeight = 700.0;
 
   @override
   Widget build(BuildContext context) {
@@ -438,7 +451,11 @@ class TabPage extends StatelessWidget {
           trailing: actions.isEmpty ? null : Row(mainAxisSize: MainAxisSize.min, children: actions),
         )
       else
-        SliverAppBar.large(title: Text(title), actions: [...actions, const SizedBox(width: 8)]),
+        // A small screen (PoC radios) has no room for the large title: one pinned row.
+        if (MediaQuery.sizeOf(context).height < TabPage.compactHeight)
+          SliverAppBar(pinned: true, toolbarHeight: 52, title: Text(title), actions: [...actions, const SizedBox(width: 8)])
+        else
+          SliverAppBar.large(title: Text(title), actions: [...actions, const SizedBox(width: 8)]),
       ...slivers,
       SliverToBoxAdapter(child: SizedBox(height: 16 + barInset + (apple && bottom != null ? dockHeight : 0))),
     ]);

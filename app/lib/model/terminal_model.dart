@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -275,7 +275,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// The on-screen PTT button (Android can hide it for radios with a hardware PTT).
-  bool get showSoftPtt => !Platform.isAndroid || settings.showPttButton;
+  bool get showSoftPtt => defaultTargetPlatform != TargetPlatform.android || settings.showPttButton;
 
   /// Rotary knob: the next (+1) or previous (-1) talkgroup in the list, wrapping
   /// around. Not while we transmit.

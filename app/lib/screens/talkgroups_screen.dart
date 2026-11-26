@@ -23,19 +23,20 @@ class TalkgroupsScreen extends StatelessWidget {
     final m = context.watch<TerminalModel>();
     final tgs = m.settings.talkgroups;
     final scheme = Theme.of(context).colorScheme;
+    final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
     final title = m.settings.name.isNotEmpty ? m.settings.name : (m.settings.issi > 0 ? 'ISSI ${m.settings.issi}' : 'Radio');
 
     return TabPage(
       title: title,
       actions: const [LinkPill()],
       slivers: [
-        const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: 12), child: NowCard())),
+        SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: compact ? 8 : 12), child: const NowCard())),
         SliverToBoxAdapter(
           child: _Card(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: EdgeInsets.fromLTRB(16, compact ? 9 : 14, 16, compact ? 9 : 14),
             child: Column(children: [
               LevelBar(label: 'TX', meter: m.audio.txMeter),
-              const SizedBox(height: 10),
+              SizedBox(height: compact ? 6 : 10),
               LevelBar(label: 'RX', meter: m.audio.rxMeter),
             ]),
           ),
@@ -56,14 +57,16 @@ class TalkgroupsScreen extends StatelessWidget {
             ),
           )
         else ...[
-          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.only(top: 12), child: GroupPicker(onManageGroups: onManageGroups))),
+          SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: compact ? 8 : 12), child: GroupPicker(onManageGroups: onManageGroups))),
           const SliverToBoxAdapter(child: LastTalkers()),
         ],
       ],
       bottom: isApple(context)
           ? const PttButton()
           : Container(
-              padding: const EdgeInsets.fromLTRB(Tokens.gutter, 14, Tokens.gutter, 18),
+              padding: !m.showSoftPtt
+                  ? const EdgeInsets.fromLTRB(Tokens.gutter, 6, Tokens.gutter, 6)
+                  : EdgeInsets.fromLTRB(Tokens.gutter, compact ? 8 : 14, Tokens.gutter, compact ? 8 : 18),
               decoration: BoxDecoration(color: scheme.surface, border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: .5), width: .5))),
               child: const PttButton(),
             ),

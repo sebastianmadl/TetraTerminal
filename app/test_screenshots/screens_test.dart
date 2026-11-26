@@ -68,11 +68,11 @@ TerminalModel _model() {
   return m;
 }
 
-Future<void> _shot(WidgetTester t, String name, TerminalModel m, Widget home, {Brightness b = Brightness.light, TargetPlatform p = TargetPlatform.iOS, Future<void> Function(WidgetTester)? act}) async {
+Future<void> _shot(WidgetTester t, String name, TerminalModel m, Widget home, {Brightness b = Brightness.light, TargetPlatform p = TargetPlatform.iOS, Future<void> Function(WidgetTester)? act, Size? size}) async {
   debugDefaultTargetPlatformOverride = p;
-  t.view.physicalSize = const Size(390 * 2, 844 * 2);
+  t.view.physicalSize = (size ?? const Size(390, 844)) * 2;
   t.view.devicePixelRatio = 2;
-  t.view.padding = const FakeViewPadding(top: 47 * 2, bottom: 34 * 2);
+  t.view.padding = size != null ? const FakeViewPadding(top: 24 * 2) : const FakeViewPadding(top: 47 * 2, bottom: 34 * 2);
   final key = GlobalKey();
   await t.pumpWidget(RepaintBoundary(
     key: key,
@@ -173,6 +173,17 @@ void main() {
     await _shot(t, '26-android-radio-group-menu', _model(), const HomeScreen(), p: TargetPlatform.android, act: (t) async {
       await t.tap(find.textContaining('Scan on'));
     });
+  });
+
+  testWidgets('27 android radio on a small PoC screen, hardware PTT', (t) async {
+    final m = _model();
+    m.settings.showPttButton = false;
+    m.settings.pocPttEnabled = true;
+    await _shot(t, '27-android-radio-small', m, const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 500));
+  });
+
+  testWidgets('28 android radio on a small PoC screen, on-screen PTT', (t) async {
+    await _shot(t, '28-android-radio-small-ptt', _model(), const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 500));
   });
 
   testWidgets('05 incoming call', (t) async {
