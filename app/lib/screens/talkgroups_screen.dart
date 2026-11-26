@@ -31,7 +31,7 @@ class TalkgroupsScreen extends StatelessWidget {
       subtitle: m.settings.active.displayName,
       actions: const [LinkPill()],
       slivers: [
-        SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: compact ? 8 : 12), child: const NowCard())),
+        SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: compact ? 8 : 12), child: tgs.isEmpty ? const NowCard() : GroupPicker(onManageGroups: onManageGroups))),
         SliverToBoxAdapter(
           child: _Card(
             padding: compact ? const EdgeInsets.fromLTRB(16, 8, 16, 8) : const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -57,7 +57,6 @@ class TalkgroupsScreen extends StatelessWidget {
             ),
           )
         else ...[
-          SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: compact ? 8 : 12), child: GroupPicker(onManageGroups: onManageGroups))),
           const SliverToBoxAdapter(child: LastTalkers()),
         ],
       ],
@@ -84,8 +83,8 @@ class _Card extends StatelessWidget {
       );
 }
 
-/// The selected group as a drop-down. Open: scan mode on top, then every
-/// group to select, each with its own "scan this group" switch.
+/// The status card as a drop-down for the group. Open: scan mode on top, then
+/// every group to select, each with its own "scan this group" switch.
 class GroupPicker extends StatelessWidget {
   const GroupPicker({super.key, this.onManageGroups});
   final VoidCallback? onManageGroups;
@@ -93,9 +92,7 @@ class GroupPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = context.watch<TerminalModel>();
-    final scheme = Theme.of(context).colorScheme;
     final tg = m.settings.talkgroups.where((t) => t.gssi == m.selectedGssi).firstOrNull;
-    final scanned = m.settings.talkgroups.where((t) => t.scan).length;
     final scanOn = m.settings.scanMode;
     return Semantics(
       button: true,
@@ -106,28 +103,7 @@ class GroupPicker extends StatelessWidget {
           Haptics.select();
           _open(context, m);
         },
-        child: _Card(
-          padding: const EdgeInsets.fromLTRB(16, 0, 12, 0),
-          child: SizedBox(
-            height: 52,
-            child: Row(children: [
-              Flexible(child: Text(tg?.name ?? 'Select a talkgroup', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
-              if (tg != null) ...[
-                const SizedBox(width: 8),
-                Text('TG ${tg.gssi}', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontFeatures: const [FontFeature.tabularFigures()])),
-              ],
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(color: scanOn ? scheme.primary.withValues(alpha: .14) : scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(11)),
-                child: Text(scanOn ? 'Scan on · $scanned' : 'Scan off',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scanOn ? scheme.primary : scheme.onSurfaceVariant)),
-              ),
-              const SizedBox(width: 6),
-              Icon(CupertinoIcons.chevron_down, size: 16, color: scheme.onSurfaceVariant),
-            ]),
-          ),
-        ),
+        child: const NowCard(picker: true),
       ),
     );
   }

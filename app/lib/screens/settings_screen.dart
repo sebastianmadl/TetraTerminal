@@ -81,6 +81,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchRow(title: 'SOS button', subtitle: 'The emergency button on the radio screen', value: s.showSosButton, onChanged: (v) => setState(() => s.showSosButton = v)),
                 SwitchRow(title: 'Loudspeaker button', subtitle: 'Switches between loudspeaker and earpiece', value: s.showSpeakerButton, onChanged: (v) => setState(() => s.showSpeakerButton = v)),
                 SliderRow(
+                  title: 'Scan hold time',
+                  valueLabel: s.scanHoldSeconds == 0 ? 'Off' : '${s.scanHoldSeconds} s',
+                  value: s.scanHoldSeconds.toDouble(),
+                  min: 0,
+                  max: 60,
+                  divisions: 12,
+                  onChanged: (v) => setState(() => s.scanHoldSeconds = v.round()),
+                ),
+                SliderRow(
                   title: 'Default priority',
                   valueLabel: 'P${s.defaultPriority}',
                   value: s.defaultPriority.toDouble(),

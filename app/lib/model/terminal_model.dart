@@ -118,7 +118,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   /// May we talk on the selected group (PTT)? Emergency calls always pass.
   bool get mayTalkOnSelected {
-    final t = settings.talkgroups.where((t) => t.gssi == settings.selectedGssi).firstOrNull;
+    final g = _scanTalkGssi ?? settings.selectedGssi;
+    final t = settings.talkgroups.where((t) => t.gssi == g).firstOrNull;
     return t == null || accessOf(t) == GroupAccess.open;
   }
 
@@ -212,6 +213,47 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   /// The talker currently heard, for the status banner.
   GroupCallState? get heard => groupActivity.values.where((g) => g.callId == focusCallId).firstOrNull;
+
+  // Scan: the group heard last stays the active one for a while after its
+  // call ended, so an answer goes to where the call was.
+  int? _scanGssi;
+  Timer? _scanHold;
+
+  /// The group the radio is on right now: the one heard, the scanned group
+  /// still held after its call ([Settings.scanHoldSeconds]), else the selected one.
+  int? get activeGssi => heard?.gssi ?? _scanGssi ?? settings.selectedGssi;
+
+  /// A scanned group other than the selected one that PTT would answer on.
+  int? get _scanTalkGssi {
+    final g = heard?.gssi ?? _scanGssi;
+    return g != null && g != settings.selectedGssi && settings.talkgroups.any((t) => t.gssi == g) ? g : null;
+  }
+
+  void _trackScan() {
+    final h = heard;
+    if (h != null) {
+      _scanHold?.cancel();
+      _scanHold = null;
+      _scanGssi = h.gssi;
+    } else if (_scanGssi != null && _scanHold == null) {
+      final secs = settings.scanHoldSeconds;
+      if (secs <= 0 || _scanGssi == settings.selectedGssi) {
+        _scanGssi = null;
+      } else {
+        _scanHold = Timer(Duration(seconds: secs), () {
+          _scanHold = null;
+          _scanGssi = null;
+          notifyListeners();
+        });
+      }
+    }
+  }
+
+  void _endScanHold() {
+    _scanHold?.cancel();
+    _scanHold = null;
+    _scanGssi = null;
+  }
 
   Future<void> start() async {
     WidgetsBinding.instance.addObserver(this);
@@ -568,12 +610,15 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         link = LinkState.offline;
         lastError = reason;
         groupActivity.clear();
+        _endScanHold();
         _closeLog();
       case AppEvent_GroupTxStarted(:final gssi, :final talker, :final talkerName, :final priority, :final callId):
         groupActivity[gssi] = GroupCallState(gssi, talker, talkerName, priority, callId);
         _logStart(callId, CallLogEntry(time: DateTime.now(), issi: talker, kind: CallKind.groupHeard, gssi: gssi, groupName: _groupName(gssi), sentName: talkerName, emergency: priority >= 15));
+        _trackScan();
       case AppEvent_GroupTxEnded(:final gssi, :final callId):
         if (groupActivity[gssi]?.callId == callId) groupActivity.remove(gssi);
+        _trackScan();
         _logEnd(callId);
       case AppEvent_TxGranted(:final callId):
         myTxCallId = callId;
@@ -617,6 +662,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         _updateMic();
       case AppEvent_AudioFocus(:final callId):
         focusCallId = callId;
+        _trackScan();
       case AppEvent_TextReceived(:final from, :final to, :final text, :final immediate):
         // Group messages are filed under the group, private ones under the sender.
         final peer = to == settings.issi ? from : to;
@@ -708,7 +754,10 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       _releaseTimer = null;
       if (myTxCallId != null) return;
     }
-    _client?.ptt(pressed: true, group: privateCall == null ? settings.selectedGssi : null, emergency: emergency);
+    // Scan: answering a call heard on another group moves the radio to that group.
+    final answer = privateCall == null && !emergency ? _scanTalkGssi : null;
+    if (answer != null) unawaited(selectGroup(answer));
+    _client?.ptt(pressed: true, group: privateCall == null ? (answer ?? settings.selectedGssi) : null, emergency: emergency);
     if (settings.lipEnabled && (settings.lipOnPtt || emergency)) {
       location.sendNow(emergency ? LipReason.emergency : LipReason.ptt);
     }
@@ -782,6 +831,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> selectGroup(int gssi) async {
     settings.selectedGssi = gssi;
+    _endScanHold();
     await settings.save();
     await _client?.setGroups(groups: Uint32List.fromList(settings.affiliatedGroups), selected: gssi);
     await _client?.selectGroup(gssi: gssi);

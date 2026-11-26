@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tetra_terminal/model/settings.dart';
@@ -305,6 +306,47 @@ void main() {
     await d.save();
     final l = await Settings.load();
     expect((l.showSosButton, l.showSpeakerButton), (false, false));
+  });
+
+  test('scan: the group heard is the active one, held after the call, and PTT moves there', () {
+    fakeAsync((a) {
+      SharedPreferences.setMockInitialValues({});
+      Settings.secrets = MemorySecrets();
+      final s = Settings()
+        ..talkgroups = [Talkgroup(1, 'One'), Talkgroup(2, 'Two')]
+        ..selectedGssi = 1
+        ..scanHoldSeconds = 15;
+      final m = TerminalModel(s);
+      expect(m.activeGssi, 1);
+      m.handleEvent(const AppEvent.groupTxStarted(gssi: 2, talker: 7, talkerName: null, priority: 1, emergency: false, callId: 'c1'));
+      m.handleEvent(const AppEvent.audioFocus(callId: 'c1'));
+      expect((m.activeGssi, m.selectedGssi), (2, 1), reason: 'the scanned group is shown while it is heard');
+      m.handleEvent(const AppEvent.groupTxEnded(gssi: 2, callId: 'c1', cause: 0));
+      m.handleEvent(const AppEvent.audioFocus(callId: null));
+      a.elapse(const Duration(seconds: 14));
+      expect(m.activeGssi, 2, reason: 'held after the call');
+      a.elapse(const Duration(seconds: 2));
+      expect(m.activeGssi, 1, reason: 'back on the selected group after the hold time');
+
+      // PTT during the hold answers on the scanned group and selects it.
+      m.handleEvent(const AppEvent.groupTxStarted(gssi: 2, talker: 7, talkerName: null, priority: 1, emergency: false, callId: 'c2'));
+      m.handleEvent(const AppEvent.audioFocus(callId: 'c2'));
+      m.handleEvent(const AppEvent.groupTxEnded(gssi: 2, callId: 'c2', cause: 0));
+      a.elapse(const Duration(seconds: 5));
+      m.pttDown();
+      a.flushMicrotasks();
+      expect((m.selectedGssi, m.activeGssi), (2, 2));
+      a.elapse(const Duration(seconds: 30));
+      expect(m.selectedGssi, 2, reason: 'the radio stays on the group it answered on');
+
+      // Hold time 0: back at once.
+      s.scanHoldSeconds = 0;
+      m.handleEvent(const AppEvent.groupTxStarted(gssi: 1, talker: 7, talkerName: null, priority: 1, emergency: false, callId: 'c3'));
+      m.handleEvent(const AppEvent.audioFocus(callId: 'c3'));
+      expect(m.activeGssi, 1);
+      m.handleEvent(const AppEvent.groupTxEnded(gssi: 1, callId: 'c3', cause: 0));
+      expect(m.activeGssi, 2);
+    });
   });
 
   test('the knob steps through the talkgroups and wraps around', () async {

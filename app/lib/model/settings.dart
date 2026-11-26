@@ -229,6 +229,8 @@ class Settings {
 
   /// Scan mode: also hear the groups marked for scanning. Off: only the selected group.
   bool scanMode = true;
+  /// Scan: seconds the radio stays on a scanned group after its call ended (0 = not at all).
+  int scanHoldSeconds = 15;
 
   /// Transmit buffer in ms (180..1020, default 240): voice held before sending starts.
   int txBufferMs = 240;
@@ -341,6 +343,7 @@ class Settings {
       ..rxTargetDb = (j['rxTargetDb'] as num?)?.toDouble() ?? -21
       ..rxMaxDb = (j['rxMaxDb'] as num?)?.toDouble() ?? -3
       ..scanMode = j['scanMode'] ?? true
+      ..scanHoldSeconds = j['scanHangSeconds'] ?? 15
       ..txBufferMs = ((j['txBufferMs'] ?? 240) as int).clamp(180, 1020)
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true
@@ -418,6 +421,7 @@ class Settings {
         'rxTargetDb': rxTargetDb,
         'rxMaxDb': rxMaxDb,
         'scanMode': scanMode,
+        'scanHangSeconds': scanHoldSeconds,
         'txBufferMs': txBufferMs,
         'backgroundAudio': backgroundAudio,
         'speakerOut': speakerOut,

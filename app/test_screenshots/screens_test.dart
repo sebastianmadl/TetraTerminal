@@ -125,6 +125,13 @@ void main() {
     await _shot(t, '01-radio-heard', m, const HomeScreen());
   });
 
+  testWidgets('31 radio, scanned group heard', (t) async {
+    final m = _model();
+    m.groupActivity[2324] = GroupCallState(2324, 2629001, 'DL2XY', 1, 'c2', since: DateTime.now().subtract(const Duration(seconds: 5)));
+    m.focusCallId = 'c2';
+    await _shot(t, '31-radio-scan-heard', m, const HomeScreen());
+  });
+
   testWidgets('02 radio dark, transmitting', (t) async {
     final m = _model()
       ..myTxCallId = 'me'
@@ -155,7 +162,7 @@ void main() {
 
   testWidgets('23 radio, group menu open', (t) async {
     await _shot(t, '23-radio-group-menu', _model(), const HomeScreen(), act: (t) async {
-      await t.tap(find.textContaining('Scan on'));
+      await t.tap(find.textContaining('Scan ·'));
     });
   });
 
@@ -171,7 +178,7 @@ void main() {
 
   testWidgets('26 android radio, group menu open', (t) async {
     await _shot(t, '26-android-radio-group-menu', _model(), const HomeScreen(), p: TargetPlatform.android, act: (t) async {
-      await t.tap(find.textContaining('Scan on'));
+      await t.tap(find.textContaining('Scan ·'));
     });
   });
 

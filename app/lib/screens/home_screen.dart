@@ -172,14 +172,22 @@ class _ElapsedState extends State<Elapsed> {
 
 /// The selected group and who is on air: the one thing a radio user looks at.
 class NowCard extends StatelessWidget {
-  const NowCard({super.key});
+  const NowCard({super.key, this.picker = false});
+
+  /// Shows the scan state and a chevron: the card opens the group menu.
+  final bool picker;
 
   @override
   Widget build(BuildContext context) {
     final m = context.watch<TerminalModel>();
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final tg = m.settings.talkgroups.where((t) => t.gssi == m.selectedGssi).firstOrNull;
+    // The group the radio is on: with scan this can be another one than the
+    // selected group, while its call runs and for the hold time after it.
+    final active = m.activeGssi;
+    final tg = m.settings.talkgroups.where((t) => t.gssi == active).firstOrNull;
+    final selected = m.settings.talkgroups.where((t) => t.gssi == m.selectedGssi).firstOrNull;
+    final scanned = active != null && active != m.selectedGssi;
     final heard = m.heard;
     final emergency = heard?.emergency == true;
 
@@ -194,7 +202,6 @@ class NowCard extends StatelessWidget {
         ),
       _ => (scheme.surfaceContainerLow, scheme.onSurface, m.link == LinkState.online ? 'Channel free' : 'Not connected', null, CupertinoIcons.circle),
     };
-    final heardOther = heard != null && heard.gssi != m.selectedGssi;
     final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
 
     return AnimatedContainer(
@@ -209,7 +216,7 @@ class NowCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: Text(
-                tg?.name ?? 'No talkgroup selected',
+                tg?.name ?? (active != null ? 'TG $active' : 'No talkgroup selected'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.headlineSmall?.copyWith(color: fg, fontWeight: FontWeight.w700, letterSpacing: -.3),
@@ -217,7 +224,23 @@ class NowCard extends StatelessWidget {
             ),
             if (tg != null)
               Text('TG ${tg.gssi}', style: text.labelLarge?.copyWith(color: fg.withValues(alpha: .75), fontFeatures: const [FontFeature.tabularFigures()])),
+            if (picker) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(color: fg.withValues(alpha: m.settings.scanMode ? .16 : .08), borderRadius: BorderRadius.circular(11)),
+                child: Text(m.settings.scanMode ? 'Scan · ${m.settings.talkgroups.where((t) => t.scan).length}' : 'Scan off',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg.withValues(alpha: m.settings.scanMode ? 1 : .7))),
+              ),
+              const SizedBox(width: 6),
+              Icon(CupertinoIcons.chevron_down, size: 16, color: fg.withValues(alpha: .75)),
+            ],
           ]),
+          if (scanned)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('Scan · selected: ${selected?.name ?? 'TG ${m.selectedGssi}'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: text.bodySmall?.copyWith(color: fg.withValues(alpha: .75))),
+            ),
           if (tg != null && tg.otherNetwork)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -229,7 +252,7 @@ class NowCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                heardOther ? '$status on TG ${heard.gssi}' : status,
+                status,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.titleMedium?.copyWith(color: fg, fontWeight: FontWeight.w600),
