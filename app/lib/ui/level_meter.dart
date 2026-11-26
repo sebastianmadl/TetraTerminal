@@ -9,12 +9,9 @@ import 'theme.dart';
 /// peak in dB. Falls back slowly so speech reads calmly; the mark keeps the
 /// last peak for two seconds.
 class LevelBar extends StatefulWidget {
-  const LevelBar({super.key, required this.label, required this.meter, this.compact = false});
+  const LevelBar({super.key, required this.label, required this.meter});
   final String label;
   final LevelMeter meter;
-
-  /// Narrow form for two bars side by side: the value without its unit.
-  final bool compact;
 
   /// The bar spans this range below full scale.
   static const rangeDb = 48.0;
@@ -80,7 +77,7 @@ class _LevelBarState extends State<LevelBar> {
       value: silent ? 'silent' : '${_peak.round()} dB',
       child: ExcludeSemantics(
         child: Row(children: [
-          SizedBox(width: widget.compact ? 21 : 26, child: Text(widget.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant))),
+          SizedBox(width: 26, child: Text(widget.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant))),
           Expanded(
             child: SizedBox(
               height: 14,
@@ -98,10 +95,7 @@ class _LevelBarState extends State<LevelBar> {
               }),
             ),
           ),
-          SizedBox(
-            width: widget.compact ? 28 : 52,
-            child: Text('${silent ? '-∞' : _peak.round()}${widget.compact ? '' : ' dB'}', textAlign: TextAlign.right, style: caption),
-          ),
+          SizedBox(width: 52, child: Text(silent ? '-∞ dB' : '${_peak.round()} dB', textAlign: TextAlign.right, style: caption)),
         ]),
       ),
     );
