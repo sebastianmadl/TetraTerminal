@@ -90,13 +90,27 @@ void main() {
     await pumpEventQueue();
     double rms(Iterable<int> v) => math.sqrt(v.fold<double>(0, (s, x) => s + x * x) / v.length);
     final second = got.skip(8000).toList();
-    expect(rms(second), inInclusiveRange(1400, 2900), reason: 'about -24 dBov instead of the microphone level');
+    expect(rms(second), inInclusiveRange(1000, 2900), reason: 'about -24 dBov instead of the microphone level');
     expect(second.map((v) => v.abs()).reduce(math.max), lessThanOrEqualTo(12000));
 
     await audio.stopMic();
     expect(captured, isNotNull);
     expect(captured!.raw.length, 32000);
     expect(captured!.encoderInput.length, got.length);
+  });
+
+  test('rumble from the iOS microphone does not reach the encoder', () async {
+    final audio = AudioIO();
+    final got = <int>[];
+    await audio.startMic((pcm) => got.addAll(pcm));
+    // 2 s of 50 Hz hum at 16 kHz, rms about 2800 (-21 dBFS).
+    for (var c = 0; c < 20; c++) {
+      sink!.success(Int16List.fromList(List.generate(1600, (i) => (math.sin(2 * math.pi * 50 * (c * 1600 + i) / 16000) * 4000).round())).buffer.asUint8List());
+    }
+    await pumpEventQueue();
+    final tail = got.skip(8000);
+    expect(math.sqrt(tail.fold<double>(0, (s, x) => s + x * x) / tail.length), lessThan(30));
+    await audio.stopMic();
   });
 
   test('a refused microphone does not start capture', () async {

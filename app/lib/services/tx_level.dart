@@ -1,20 +1,71 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-/// Automatic level for the transmit path (8 kHz samples, before the limiter).
+/// High-pass for the transmit path (8 kHz): 4th-order Butterworth at 300 Hz, the lower edge of TETRA speech.
+///
+/// A phone microphone without the system's voice processing passes rumble and
+/// hum (handling, wind, mains, 25..100 Hz). TETRA speech only uses 300..3400
+/// Hz, but the energy below eats the encoder's dynamic range and buries the
+/// voice: in a capture from an iPhone (2026-11-26) 73 % of the microphone
+/// energy was below 300 Hz, constantly at about -28 dBFS.
+class HighPass {
+  HighPass({double cutoff = 300, int rate = 8000}) {
+    // Two cascaded biquads, Q of a 4th-order Butterworth.
+    for (final q in [0.5412, 1.3066]) {
+      final w = 2 * math.pi * cutoff / rate;
+      final alpha = math.sin(w) / (2 * q);
+      final c = math.cos(w);
+      final a0 = 1 + alpha;
+      _s.add(_Biquad((1 + c) / 2 / a0, -(1 + c) / a0, (1 + c) / 2 / a0, -2 * c / a0, (1 - alpha) / a0));
+    }
+  }
+
+  final _s = <_Biquad>[];
+
+  void reset() {
+    for (final b in _s) {
+      b.reset();
+    }
+  }
+
+  double process(double x) {
+    for (final b in _s) {
+      x = b.process(x);
+    }
+    return x;
+  }
+}
+
+class _Biquad {
+  _Biquad(this.b0, this.b1, this.b2, this.a1, this.a2);
+  final double b0, b1, b2, a1, a2;
+  double _z1 = 0, _z2 = 0;
+
+  void reset() => _z1 = _z2 = 0;
+
+  double process(double x) {
+    final y = b0 * x + _z1;
+    _z1 = b1 * x - a1 * y + _z2;
+    _z2 = b2 * x - a2 * y;
+    return y;
+  }
+}
+
+/// Automatic level for the transmit path (8 kHz samples, after [HighPass],
+/// before the limiter).
 ///
 /// Brings speech to a fixed level before the ACELP encoder, whatever the
 /// microphone delivers. A phone microphone without system voice processing is
 /// much hotter than the nominal level speech codecs are specified for
 /// (about -26 dBov active speech level); the fixed gain plus peak limiter that
-/// was used alone lets loud speech through 10 dB and more above that, which
-/// radios reproduce as very loud, harsh audio.
+/// was used alone lets loud speech through 10 dB and more above that.
 ///
-/// Fast down (a loud onset is turned down within a few milliseconds), slow up
-/// (pauses do not pump the background noise), and no change at all below the
-/// gate, so silence and room noise are never amplified.
+/// Fast down (a loud onset is turned down within a few milliseconds), slow up,
+/// and up only for speech: the control tracks the background level (falls at
+/// once, rises slowly) and raises the gain only while the signal is clearly
+/// above it. Room noise, hum and pauses are never raised.
 class TxLevel {
-  TxLevel({this.targetRms = 2000, this.maxGainDb = 12, this.minGainDb = -30, this.gateRms = 120});
+  TxLevel({this.targetRms = 2000, this.maxGainDb = 12, this.minGainDb = -30, this.gateRms = 120, this.speechOverNoiseDb = 9});
 
   /// Speech level after the control (about -24 dBov).
   final double targetRms;
@@ -24,36 +75,61 @@ class TxLevel {
   /// Below this level the gain is held.
   final double gateRms;
 
+  /// The gain only rises while the signal is this far above the background.
+  final double speechOverNoiseDb;
+
   // One-pole coefficients at 8 kHz.
   static const _envCoef = 0.004; // level detector, ~30 ms
   static const _down = 0.02; // ~6 ms
   static const _up = 0.00025; // ~0.5 s
   static const _nowCoef = 0.03; // ~4 ms
+  static const _floorRise = 0.0005; // background estimate rises ~17 dB/s
 
   double _pow = 0;
   double _now = 0;
+  double _floor = 0;
   double _g = 1;
+  int _warm = 0;
 
   /// Current gain (for tests).
   double get gain => _g;
 
+  /// Current background estimate as rms (for tests).
+  double get noiseRms => math.sqrt(_floor);
+
   void reset() {
     _pow = 0;
     _now = 0;
+    _floor = 0;
     _g = 1;
+    _warm = 0;
   }
+
+  // The first 50 ms only learn the background: the level detector is still
+  // rising, and the background estimate would lag far behind it.
+  static const _warmup = 400;
 
   double process(double x) {
     _pow += (x * x - _pow) * _envCoef;
     _now += (x * x - _now) * _nowCoef;
+    final warming = _warm < _warmup;
+    if (warming) {
+      _warm++;
+      _floor = _pow;
+    } else if (_pow < _floor) {
+      _floor = _pow;
+    } else {
+      _floor += _floor * _floorRise;
+    }
     final rms = math.sqrt(_pow);
     if (rms > gateRms) {
       final want = (targetRms / rms).clamp(_lin(minGainDb), _lin(maxGainDb));
+      final speech = _now > _floor * _lin(speechOverNoiseDb) * _lin(speechOverNoiseDb);
       if (want < _g) {
         _g += (want - _g) * _down;
-      } else if (_now > gateRms * gateRms) {
-        // Up only while there is signal right now: in the pause after loud
-        // speech the detector is still falling, which must not raise the gain.
+      } else if (speech && !warming) {
+        // Up only while there is speech right now: not on the background, and
+        // not in the pause after loud speech while the detector still falls.
         _g += (want - _g) * _up;
       }
     }

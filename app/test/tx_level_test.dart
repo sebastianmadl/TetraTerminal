@@ -35,7 +35,9 @@ void main() {
       final l = TxLevel();
       final out = speech(inRms).map(l.process).toList();
       final settled = rmsOf(out.skip(8000)); // after the first second
-      expect(db(settled / l.targetRms).abs(), lessThan(3), reason: 'input rms $inRms -> $settled');
+      // The gain only rises during speech, so the syllable peaks set it and
+      // the long-term rms (pauses included) ends up a few dB below target.
+      expect(db(settled / l.targetRms).abs(), lessThan(4), reason: 'input rms $inRms -> $settled');
     }
   });
 
@@ -70,6 +72,43 @@ void main() {
     final l = TxLevel();
     speech(200, seconds: 5).forEach(l.process);
     expect(db(l.gain), closeTo(12, 0.5));
+  });
+
+  test('the high-pass removes rumble and keeps the TETRA speech band', () {
+    double gainAt(double f) {
+      final h = HighPass();
+      final x = [for (var i = 0; i < 16000; i++) math.sin(2 * math.pi * f * i / 8000) * 10000];
+      final y = x.map(h.process).toList();
+      return db(rmsOf(y.skip(8000)) / rmsOf(x.skip(8000)));
+    }
+
+    expect(gainAt(50), lessThan(-50), reason: 'mains hum and handling rumble');
+    expect(gainAt(100), lessThan(-35));
+    expect(gainAt(300), closeTo(-3, 0.5), reason: '-3 dB at the lower edge of TETRA speech');
+    expect(gainAt(1000).abs(), lessThan(0.5));
+    expect(gainAt(3000).abs(), lessThan(0.5));
+  });
+
+  test('steady background noise is learnt and not raised to speech level', () {
+    // A raw iPhone microphone in a room, rms about 1000: below the target, but
+    // far above the gate. Raising it would bury the speech that follows.
+    final l = TxLevel();
+    final rnd = math.Random(3);
+    for (var i = 0; i < 8000 * 5; i++) {
+      l.process((rnd.nextDouble() * 2 - 1) * 1730);
+    }
+    expect(l.noiseRms, closeTo(1000, 150));
+    expect(db(l.gain), lessThan(1), reason: 'gain ${l.gain}');
+  });
+
+  test('speech over learnt noise is still raised', () {
+    final l = TxLevel();
+    final rnd = math.Random(4);
+    for (var i = 0; i < 8000 * 2; i++) {
+      l.process((rnd.nextDouble() * 2 - 1) * 170); // rms ~100
+    }
+    final out = speech(800).map(l.process).toList();
+    expect(db(rmsOf(out.skip(8000)) / l.targetRms).abs(), lessThan(4));
   });
 
   test('WAV header and samples', () {

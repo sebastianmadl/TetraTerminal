@@ -410,6 +410,9 @@ class PlayoutQueue {
 class _Decimator2 {
   _Decimator2({this.level});
 
+  /// Rumble and hum off before level control and encoder (both platforms).
+  final _hp = HighPass();
+
   /// Automatic level instead of the fixed built-in gain (the trim still applies).
   final TxLevel? level;
 
@@ -443,6 +446,7 @@ class _Decimator2 {
   void reset() {
     _lim.reset();
     level?.reset();
+    _hp.reset();
     _hist = List<double>.filled(_taps - 1, 0);
     _count = 0;
   }
@@ -464,7 +468,8 @@ class _Decimator2 {
         for (var t = 0; t < _taps; t++) {
           y += _h[t] * c[base - t];
         }
-        out.add(_lim.process((level?.process(y) ?? y) * gain).round().clamp(-32768, 32767));
+        final h = _hp.process(y);
+        out.add(_lim.process((level?.process(h) ?? h) * gain).round().clamp(-32768, 32767));
       }
     }
     _count += n;
