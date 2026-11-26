@@ -170,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
               ]),
-              Section(header: 'Audio', footer: 'In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery. A larger transmit buffer delays your speech but bridges gaps on a shaky connection.', children: [
+              Section(header: 'Audio', footer: 'Mic gain: check your level before you go on air, on a parrot group or with a second radio on the same talkgroup, so that you do not overdrive. In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery. A larger transmit buffer delays your speech but bridges gaps on a shaky connection.', children: [
                 SwitchRow(title: 'Run in the background', value: s.backgroundAudio, onChanged: (v) => setState(() => s.backgroundAudio = v)),
                 SliderRow(
                   title: 'Mic gain',
