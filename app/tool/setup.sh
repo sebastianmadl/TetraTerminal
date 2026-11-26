@@ -78,6 +78,10 @@ if ! grep -q RECORD_AUDIO "$MANIFEST"; then
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>\
     <application#' "$MANIFEST" && rm -f "$MANIFEST.bak"
 fi
+# LIP in the background: geolocator's foreground service has type location.
+grep -q FOREGROUND_SERVICE_LOCATION "$MANIFEST" || \
+  sed -i.bak 's#<application#<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>\
+    <application#' "$MANIFEST" && rm -f "$MANIFEST.bak"
 GRADLE=$(ls android/app/build.gradle* | head -1)
 sed -i.bak -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$GRADLE" && rm -f "$GRADLE.bak"
 

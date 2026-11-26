@@ -323,6 +323,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     if (settings.basestation) await _startControl();
     if (settings.lipEnabled && settings.lipDestination > 0) {
       await location.start(Duration(seconds: settings.lipIntervalSeconds));
+    } else {
+      await location.stop();
     }
     await WakelockPlus.enable();
   }
@@ -331,6 +333,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> goOffline() async {
     _wantOnline = false;
     await disconnect();
+    await location.stop();
   }
 
   Future<void> disconnect() async {
@@ -341,7 +344,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     controlOnline = false;
     controlError = null;
     if (ctl != null) await ctl.shutdown();
-    await location.stop();
+    // Location keeps running through a reconnect (see LocationService.start);
+    // reports while offline go nowhere.
     await audio.stopMic();
     if (c != null) await c.shutdown();
     link = LinkState.offline;
@@ -777,6 +781,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _stopPttInput();
     disconnect();
+    location.stop();
     audio.dispose();
     super.dispose();
   }
