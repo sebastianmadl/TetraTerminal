@@ -61,15 +61,8 @@ class TalkgroupsScreen extends StatelessWidget {
           const SliverToBoxAdapter(child: LastTalkers()),
         ],
       ],
-      bottom: isApple(context)
-          ? const PttButton()
-          : Container(
-              padding: !m.showSoftPtt
-                  ? const EdgeInsets.fromLTRB(Tokens.gutter, 6, Tokens.gutter, 6)
-                  : EdgeInsets.fromLTRB(Tokens.gutter, compact ? 8 : 14, Tokens.gutter, compact ? 8 : 18),
-              decoration: BoxDecoration(color: scheme.surface, border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: .5), width: .5))),
-              child: const PttButton(),
-            ),
+      bottom: const PttButton(),
+      bottomHeight: !m.showSoftPtt ? 56 : (compact ? 112 : 150),
     );
   }
 }

@@ -279,18 +279,10 @@ class _PttButtonState extends State<PttButton> {
     }
 
     return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      SizedBox(width: slim ? 44 : 64, child: SpeakerButton(slim: slim)),
+      SizedBox(width: slim ? 44 : 64, child: SpeakerButton(slim: slim || !apple, size: slim ? 40 : 56)),
       const Spacer(),
-      if (!m.showSoftPtt)
-        // Hardware PTT only (Android setting): a small status pill instead of the button.
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(color: tx ? Tokens.talk : scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(22)),
-          child: Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT KEY'),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: tx ? Colors.white : scheme.onSurfaceVariant)),
-        )
-      else
+      // Hardware PTT only (Android setting): no button, the status card shows who talks.
+      if (m.showSoftPtt)
       Semantics(
         button: true,
         label: toggle
@@ -345,13 +337,17 @@ class _PttButtonState extends State<PttButton> {
   }
 }
 
+/// The round buttons float above the content: a soft shadow sets them apart.
+const _floatShadow = [BoxShadow(color: Color(0x24000000), blurRadius: 10, offset: Offset(0, 3))];
+
 /// Loudspeaker / earpiece (phone mode). A headset or Bluetooth device always
 /// wins; the choice is saved.
 class SpeakerButton extends StatelessWidget {
-  const SpeakerButton({super.key, this.slim = false});
+  const SpeakerButton({super.key, this.slim = false, this.size = 56});
 
-  /// Small and without the caption (hardware PTT layout).
+  /// Without the caption (floating over content on Android).
   final bool slim;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -372,11 +368,11 @@ class SpeakerButton extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: slim ? 40 : 56,
-              height: slim ? 40 : 56,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? scheme.primaryContainer : scheme.surfaceContainerHigh),
+              width: size,
+              height: size,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? scheme.primaryContainer : scheme.surfaceContainerHigh, boxShadow: _floatShadow),
               alignment: Alignment.center,
-              child: Icon(on ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill, size: slim ? 18 : 24, color: on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+              child: Icon(on ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill, size: size < 56 ? 18 : 24, color: on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
             ),
             if (!slim) ...[
               const SizedBox(height: 4),
@@ -414,7 +410,7 @@ class _SosButton extends StatelessWidget {
         child: Container(
           width: size,
           height: size,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: enabled ? Tokens.emergency : Theme.of(context).colorScheme.surfaceContainerHigh),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: enabled ? Tokens.emergency : Theme.of(context).colorScheme.surfaceContainerHigh, boxShadow: _floatShadow),
           alignment: Alignment.center,
           child: Text('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size < 56 ? 12 : 15, letterSpacing: .5)),
         ),
@@ -426,11 +422,14 @@ class _SosButton extends StatelessWidget {
 /// Large-title page scaffold used by every tab: title, optional trailing
 /// actions, then content.
 class TabPage extends StatelessWidget {
-  const TabPage({super.key, required this.title, this.actions = const [], required this.slivers, this.bottom});
+  const TabPage({super.key, required this.title, this.actions = const [], required this.slivers, this.bottom, this.bottomHeight = 150});
   final String title;
   final List<Widget> actions;
   final List<Widget> slivers;
   final Widget? bottom;
+
+  /// Room the floating [bottom] takes, kept free below the last row.
+  final double bottomHeight;
 
   /// Screens lower than this (logical pixels) get the compact layout.
   static const compactHeight = 700.0;
@@ -441,7 +440,6 @@ class TabPage extends StatelessWidget {
     final apple = isApple(context);
     // Bottom inset: the floating tab bar (Scaffold.extendBody puts it in the padding).
     final barInset = MediaQuery.of(context).padding.bottom;
-    const dockHeight = 150.0;
     final scroll = CustomScrollView(slivers: [
       if (isApple(context))
         CupertinoSliverNavigationBar(
@@ -457,14 +455,14 @@ class TabPage extends StatelessWidget {
         else
           SliverAppBar.large(title: Text(title), actions: [...actions, const SizedBox(width: 8)]),
       ...slivers,
-      SliverToBoxAdapter(child: SizedBox(height: 16 + barInset + (apple && bottom != null ? dockHeight : 0))),
+      SliverToBoxAdapter(child: SizedBox(height: 16 + barInset + (bottom != null ? bottomHeight : 0))),
     ]);
     if (bottom == null) return scroll;
-    if (!apple) return Column(children: [Expanded(child: scroll), bottom!]);
-    // iOS: the PTT dock floats on glass above the tab bar, content scrolls beneath.
+    // The PTT controls float above the content, which scrolls beneath them
+    // (iOS: above the glass tab bar; Android: above the navigation bar).
     return Stack(children: [
       Positioned.fill(child: scroll),
-      Positioned(left: 20, right: 20, bottom: barInset + 14, child: bottom!),
+      Positioned(left: apple ? 20 : Tokens.gutter, right: apple ? 20 : Tokens.gutter, bottom: barInset + (apple ? 14 : 10), child: bottom!),
     ]);
   }
 }
