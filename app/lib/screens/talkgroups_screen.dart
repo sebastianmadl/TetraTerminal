@@ -33,12 +33,19 @@ class TalkgroupsScreen extends StatelessWidget {
         SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: compact ? 8 : 12), child: const NowCard())),
         SliverToBoxAdapter(
           child: _Card(
-            padding: EdgeInsets.fromLTRB(16, compact ? 9 : 14, 16, compact ? 9 : 14),
-            child: Column(children: [
-              LevelBar(label: 'TX', meter: m.audio.txMeter),
-              SizedBox(height: compact ? 6 : 10),
-              LevelBar(label: 'RX', meter: m.audio.rxMeter),
-            ]),
+            padding: compact ? const EdgeInsets.fromLTRB(14, 8, 14, 8) : const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            // Small screens: both meters in one row.
+            child: compact
+                ? Row(children: [
+                    Expanded(child: LevelBar(label: 'TX', meter: m.audio.txMeter, compact: true)),
+                    const SizedBox(width: 14),
+                    Expanded(child: LevelBar(label: 'RX', meter: m.audio.rxMeter, compact: true)),
+                  ])
+                : Column(children: [
+                    LevelBar(label: 'TX', meter: m.audio.txMeter),
+                    const SizedBox(height: 10),
+                    LevelBar(label: 'RX', meter: m.audio.rxMeter),
+                  ]),
           ),
         ),
         if (tgs.isEmpty)
