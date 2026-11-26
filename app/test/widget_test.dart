@@ -358,9 +358,9 @@ void main() {
     final said = <String>[];
     final m = TerminalModel(s)..speak = (t) async => said.add(t);
     await m.stepTalkgroup(1);
-    expect((m.selectedGssi, m.toast), (2, 'Two'));
+    expect((m.selectedGssi, m.toast), (2, null), reason: 'the status card shows the group, no pop-up');
     await m.stepTalkgroup(1);
-    expect((m.selectedGssi, m.toast), (3, 'TG 3'));
+    expect(m.selectedGssi, 3);
     await m.stepTalkgroup(1);
     expect(m.selectedGssi, 1, reason: 'wraps to the first');
     await m.stepTalkgroup(-1);

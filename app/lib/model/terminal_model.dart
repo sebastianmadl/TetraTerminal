@@ -329,7 +329,6 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     if (tgs.isEmpty || transmitting) return;
     final i = tgs.indexWhere((t) => t.gssi == settings.selectedGssi);
     final next = tgs[((i < 0 ? 0 : i + step) % tgs.length + tgs.length) % tgs.length];
-    toast = next.name.isEmpty ? 'TG ${next.gssi}' : next.name;
     // A bare number is read digit by digit, as on the air.
     if (settings.announceGroup) unawaited(speak(next.name.isEmpty ? '${next.gssi}'.split('').join(' ') : next.name));
     await selectGroup(next.gssi);
