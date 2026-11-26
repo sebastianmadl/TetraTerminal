@@ -207,6 +207,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(contacts.startRadioId());
     audio.speaker = settings.speakerOut;
     audio.captureTx = settings.txCapture;
+    audio.noiseSuppression = settings.noiseSuppression;
+    audio.rxLevel = settings.rxLevel;
     audio.onTxCapture = TxCaptureStore.save;
     await audio.init();
     audio.micGainDb = settings.micGainDb;
@@ -763,6 +765,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     settings = s;
     audio.micGainDb = s.micGainDb;
     audio.captureTx = s.txCapture;
+    audio.noiseSuppression = s.noiseSuppression;
+    audio.rxLevel = s.rxLevel;
     await s.save();
     await _startPttInput();
     await connect();

@@ -8,6 +8,7 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:record/record.dart' hide IosAudioCategory;
 import 'package:tetra_mic/tetra_mic.dart';
 
+import 'noise_suppressor.dart';
 import 'tx_level.dart';
 import 'upsampler.dart';
 
@@ -41,6 +42,16 @@ class AudioIO {
 
   /// Microphone trim in dB (applies immediately, also mid-transmission).
   set micGainDb(double db) => _decim.setTrimDb(db);
+
+  /// Background noise suppression on the transmit path (from the next
+  /// transmission on). See [NoiseSuppressor].
+  bool get noiseSuppression => _decim.suppress;
+  set noiseSuppression(bool on) => _decim.suppress = on;
+
+  /// Received speech brought to one level, whoever talks.
+  bool get rxLevel => _rx.enabled;
+  set rxLevel(bool on) => _rx.enabled = on;
+  final _rx = RxLeveller();
 
   /// Android capture; iOS uses [TetraMic], which survives hardware changes.
   /// Created on first use, so iOS never instantiates it.
@@ -273,7 +284,7 @@ class AudioIO {
       _feed(Int16List(pcm.length));
     }
     _lastPlay = now;
-    _feed(pcm);
+    _feed(_rx.process(pcm));
   }
 
   Timer? _keepAlive;
@@ -413,6 +424,11 @@ class _Decimator2 {
   /// Rumble and hum off before level control and encoder (both platforms).
   final _hp = HighPass();
 
+  /// Background noise suppression, switched in the settings.
+  final _ns = NoiseSuppressor();
+  bool suppress = true;
+  bool _suppressing = true; // fixed for one transmission
+
   /// Automatic level instead of the fixed built-in gain (the trim still applies).
   final TxLevel? level;
 
@@ -447,6 +463,8 @@ class _Decimator2 {
     _lim.reset();
     level?.reset();
     _hp.reset();
+    _ns.reset();
+    _suppressing = suppress;
     _hist = List<double>.filled(_taps - 1, 0);
     _count = 0;
   }
@@ -468,7 +486,8 @@ class _Decimator2 {
         for (var t = 0; t < _taps; t++) {
           y += _h[t] * c[base - t];
         }
-        final h = _hp.process(y);
+        var h = _hp.process(y);
+        if (_suppressing) h = _ns.process(h);
         out.add(_lim.process((level?.process(h) ?? h) * gain).round().clamp(-32768, 32767));
       }
     }

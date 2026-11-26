@@ -139,6 +139,30 @@ class TxLevel {
   static double _lin(double db) => math.pow(10, db / 20).toDouble();
 }
 
+/// Received speech at one level: quiet and loud talkers, and radios with
+/// different microphone gain, all come out about equally loud. Same control
+/// as on the transmit side (fast down, slow up, only for speech, background
+/// never raised), aimed a little hotter, with a hard ceiling against clipping.
+class RxLeveller {
+  RxLeveller({this.enabled = true});
+
+  bool enabled;
+
+  /// Speech level after the control (about -21 dBov).
+  static const targetRms = 3000.0;
+
+  final _level = TxLevel(targetRms: targetRms, maxGainDb: 15, gateRms: 60);
+
+  Int16List process(Int16List pcm) {
+    if (!enabled) return pcm;
+    final out = Int16List(pcm.length);
+    for (var i = 0; i < pcm.length; i++) {
+      out[i] = _level.process(pcm[i].toDouble()).round().clamp(-32767, 32767);
+    }
+    return out;
+  }
+}
+
 /// A mono PCM16 WAV file.
 Uint8List wavBytes(Int16List pcm, int sampleRate) {
   final data = pcm.length * 2;

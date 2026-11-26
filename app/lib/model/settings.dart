@@ -212,6 +212,12 @@ class Settings {
   /// Diagnostics: save each transmission's microphone audio as WAV files.
   bool txCapture = false;
 
+  /// Suppress background noise in own transmissions.
+  bool noiseSuppression = true;
+
+  /// Bring received speech to one level.
+  bool rxLevel = true;
+
   /// Keep running in the background (hear calls with the screen locked).
   bool backgroundAudio = true;
 
@@ -278,6 +284,8 @@ class Settings {
       ..allowPreemption = j['allowPreemption'] ?? true
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
       ..txCapture = j['txCapture'] ?? false
+      ..noiseSuppression = j['noiseSuppression'] ?? true
+      ..rxLevel = j['rxLevel'] ?? true
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true
       ..appearance = j['appearance'] ?? 'system'
@@ -333,6 +341,8 @@ class Settings {
         'allowPreemption': allowPreemption,
         'micGainDb': micGainDb,
         'txCapture': txCapture,
+        'noiseSuppression': noiseSuppression,
+        'rxLevel': rxLevel,
         'backgroundAudio': backgroundAudio,
         'speakerOut': speakerOut,
         'appearance': appearance,

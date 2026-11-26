@@ -141,7 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (isApple(context))
                   SwitchRow(
                     title: 'Live Activity',
-                    subtitle: 'Group, talker and time on the Lock Screen and in the Dynamic Island, with a tap-to-talk button',
+                    subtitle: 'Group, talker and time on the Lock Screen and in the Dynamic Island',
                     value: s.liveActivity,
                     onChanged: m.setLiveActivity,
                   )
@@ -168,6 +168,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) {
                     setState(() => s.micGainDb = v);
                     m.audio.micGainDb = v; // live: takes effect on the next transmission
+                  },
+                ),
+                SwitchRow(
+                  title: 'Noise suppression',
+                  subtitle: 'Turns down background noise in your transmissions',
+                  value: s.noiseSuppression,
+                  onChanged: (v) {
+                    setState(() => s.noiseSuppression = v);
+                    m.audio.noiseSuppression = v; // from the next transmission
+                    s.save();
+                  },
+                ),
+                SwitchRow(
+                  title: 'Even out received volume',
+                  subtitle: 'Quiet and loud talkers play at the same level',
+                  value: s.rxLevel,
+                  onChanged: (v) {
+                    setState(() => s.rxLevel = v);
+                    m.audio.rxLevel = v;
+                    s.save();
                   },
                 ),
                 SwitchRow(

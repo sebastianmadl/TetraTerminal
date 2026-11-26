@@ -113,6 +113,26 @@ void main() {
     await audio.stopMic();
   });
 
+  test('noise suppression turns down room noise, and can be switched off', () async {
+    Future<double> noiseOut(bool on) async {
+      final audio = AudioIO()..noiseSuppression = on;
+      final got = <int>[];
+      await audio.startMic((pcm) => got.addAll(pcm));
+      final rnd = math.Random(5);
+      // 3 s of broadband room noise at 16 kHz, rms about 1000.
+      for (var c = 0; c < 30; c++) {
+        sink!.success(Int16List.fromList(List.generate(1600, (_) => ((rnd.nextDouble() * 2 - 1) * 1730).round())).buffer.asUint8List());
+      }
+      await pumpEventQueue();
+      await audio.stopMic();
+      final tail = got.skip(8000);
+      return math.sqrt(tail.fold<double>(0, (s, x) => s + x * x) / tail.length);
+    }
+
+    final off = await noiseOut(false), on = await noiseOut(true);
+    expect(20 * math.log(off / on) / math.ln10, greaterThan(8), reason: 'off $off, on $on');
+  });
+
   test('a refused microphone does not start capture', () async {
     messenger.setMockMethodCallHandler(methods, (call) async {
       calls.add(call.method);

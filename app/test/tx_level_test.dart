@@ -111,6 +111,23 @@ void main() {
     expect(db(rmsOf(out.skip(8000)) / l.targetRms).abs(), lessThan(4));
   });
 
+  test('received talkers of different loudness play at one level, or untouched when off', () {
+    Int16List frames(double rms) => Int16List.fromList(speech(rms, seconds: 4.32).map((v) => v.round().clamp(-32768, 32767)).toList());
+    for (final rms in [400.0, 1500.0, 9000.0]) {
+      final r = RxLeveller();
+      final pcm = frames(rms);
+      final out = <int>[];
+      for (var i = 0; i < pcm.length; i += 480) {
+        out.addAll(r.process(Int16List.sublistView(pcm, i, i + 480)));
+      }
+      final settled = rmsOf(out.skip(16000).map((v) => v.toDouble()));
+      expect(db(settled / RxLeveller.targetRms).abs(), lessThan(4), reason: 'talker rms $rms -> $settled');
+    }
+    final off = RxLeveller(enabled: false);
+    final pcm = frames(400);
+    expect(off.process(pcm), same(pcm));
+  });
+
   test('WAV header and samples', () {
     final w = wavBytes(Int16List.fromList([1, -2, 300]), 8000);
     expect(w.length, 44 + 6);
