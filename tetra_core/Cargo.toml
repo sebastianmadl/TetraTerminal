@@ -1,6 +1,6 @@
 [package]
 name = "tetra_core"
-version = "1.4.0" # keep equal to app/pubspec.yaml: sent in the User-Agent
+version = "1.5.0" # keep equal to app/pubspec.yaml: sent in the User-Agent
 edition = "2024"
 
 [lib]
