@@ -41,6 +41,17 @@ void main() {
     }
   });
 
+  test('a quiet microphone (Android PoC radio) is raised to the nominal level with the wider range', () {
+    // Speech at rms 250, about 18 dB under nominal: out of reach of +12 dB.
+    final narrow = TxLevel();
+    final wide = TxLevel(maxGainDb: 24);
+    final quiet = speech(250, seconds: 6);
+    final a = quiet.map(narrow.process).toList();
+    final b = quiet.map(wide.process).toList();
+    expect(db(rmsOf(a.skip(32000)) / narrow.targetRms), lessThan(-5), reason: 'the default range stays too quiet');
+    expect(db(rmsOf(b.skip(32000)) / wide.targetRms).abs(), lessThan(4));
+  });
+
   test('a loud onset is turned down within 20 ms', () {
     final l = TxLevel();
     final out = speech(12000, seconds: 0.5).map(l.process).toList();

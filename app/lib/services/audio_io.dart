@@ -31,9 +31,11 @@ class AudioIO {
   /// Asking Android for 8 kHz directly makes many devices resample badly
   /// (aliasing = glitches and whistles that the ACELP codec amplifies).
   static const _micRate = 16000;
-  // iOS: automatic level. The raw iOS microphone is far hotter than the fixed
-  // gain was made for (it was tuned on Android, which keeps it).
-  final _decim = _Decimator2(level: _isApple ? TxLevel() : null);
+  // Automatic level on both platforms: the raw iOS microphone is far hotter
+  // than nominal, and the plain microphone source of Android PoC radios far
+  // quieter (a Hytera P60 needed +12 dB and a raised voice), so Android may
+  // raise speech further.
+  final _decim = _Decimator2(level: _isApple ? TxLevel() : TxLevel(maxGainDb: 24));
 
   /// Diagnostics: keep each transmission's microphone and encoder input and
   /// hand them to [onTxCapture] when it ends.
