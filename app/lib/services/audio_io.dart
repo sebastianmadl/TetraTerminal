@@ -46,6 +46,10 @@ class AudioIO {
   /// Microphone trim in dB (applies immediately, also mid-transmission).
   set micGainDb(double db) => _decim.setTrimDb(db);
 
+  /// Microphone level: automatic (speech brought to the nominal level, the
+  /// gain is a trim on top) or manual (the gain alone sets the level).
+  set txAutoLevel(bool on) => _decim.auto = on;
+
   /// Background noise suppression on the transmit path (from the next
   /// transmission on). See [NoiseSuppressor].
   bool get noiseSuppression => _decim.suppress;
@@ -479,6 +483,9 @@ class _Decimator2 {
   static const _baseGain = 0.6;
   late double gain = level == null ? _baseGain : 1.0;
 
+  /// Off: [level] is bypassed and [gain] alone sets the level.
+  bool auto = true;
+
   void setTrimDb(double db) => gain = (level == null ? _baseGain : 1.0) * math.pow(10, db / 20).toDouble();
   final _lim = PeakLimiter();
   static final List<double> _h = _design();
@@ -551,7 +558,7 @@ class _Decimator2 {
         ? ns(Int16List.fromList([for (final v in hp) v.round().clamp(-32768, 32767)]))
         : hp;
     return Int16List.fromList([
-      for (final h in clean) _lim.process((level?.process(h.toDouble()) ?? h.toDouble()) * gain).round().clamp(-32768, 32767),
+      for (final h in clean) _lim.process((auto ? (level?.process(h.toDouble()) ?? h.toDouble()) : h.toDouble()) * gain).round().clamp(-32768, 32767),
     ]);
   }
 

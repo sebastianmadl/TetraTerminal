@@ -212,6 +212,19 @@ void main() {
     expect((l.pttAutoStopSeconds, l.pttToggle), (120, true));
   });
 
+  test('microphone level is automatic by default; manual is saved', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final d = await Settings.load();
+    expect((d.micAuto, d.micGainDb), (true, 0.0));
+    d
+      ..micAuto = false
+      ..micGainDb = 18;
+    await d.save();
+    final l = await Settings.load();
+    expect((l.micAuto, l.micGainDb), (false, 18.0));
+  });
+
   test('noise suppression is off and received level on by default, both saved', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = MemorySecrets();

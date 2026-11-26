@@ -274,6 +274,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     audio.onTxCapture = TxCaptureStore.save;
     await audio.init();
     audio.micGainDb = settings.micGainDb;
+    audio.txAutoLevel = settings.micAuto;
     await _startPttInput();
     await _startPocPtt();
     if (settings.isConfigured) await connect();
@@ -942,6 +943,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> applySettings(Settings s) async {
     settings = s;
     audio.micGainDb = s.micGainDb;
+    audio.txAutoLevel = s.micAuto;
     audio.captureTx = s.txCapture;
     audio.noiseSuppression = s.noiseSuppression;
     audio.rxLevel = s.rxLevel;

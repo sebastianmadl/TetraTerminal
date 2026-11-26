@@ -170,15 +170,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
               ]),
-              Section(header: 'Audio', footer: 'Mic gain: check your level before you go on air, on a parrot group or with a second radio on the same talkgroup, so that you do not overdrive. In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery. A larger transmit buffer delays your speech but bridges gaps on a shaky connection.', children: [
+              Section(header: 'Audio', footer: 'Microphone level: Automatic brings your speech to the right level by itself, the trim shifts it a little. Manual uses the gain you set and nothing else. Check your level before you go on air, on a parrot group or with a second radio on the same talkgroup, so that you do not overdrive. In the background the app keeps a silent audio stream open so calls still come in with the screen locked. Uses some battery. A larger transmit buffer delays your speech but bridges gaps on a shaky connection.', children: [
                 SwitchRow(title: 'Run in the background', value: s.backgroundAudio, onChanged: (v) => setState(() => s.backgroundAudio = v)),
+                LabeledSegments<bool>(
+                  label: 'Microphone level',
+                  items: const {true: 'Automatic', false: 'Manual'},
+                  value: s.micAuto,
+                  onChanged: (v) {
+                    // The trim range of the automatic is narrower than the manual one.
+                    setState(() {
+                      s.micAuto = v;
+                      if (v) s.micGainDb = s.micGainDb.clamp(-12, 12);
+                    });
+                    m.audio.txAutoLevel = v;
+                    m.audio.micGainDb = s.micGainDb;
+                  },
+                ),
                 SliderRow(
-                  title: 'Mic gain',
+                  title: s.micAuto ? 'Mic trim' : 'Mic gain',
                   valueLabel: '${s.micGainDb >= 0 ? '+' : ''}${s.micGainDb.round()} dB',
-                  value: s.micGainDb,
+                  value: s.micGainDb.clamp(-12, s.micAuto ? 12 : 24).toDouble(),
                   min: -12,
-                  max: 12,
-                  divisions: 24,
+                  max: s.micAuto ? 12 : 24,
+                  divisions: s.micAuto ? 24 : 36,
                   onChanged: (v) {
                     setState(() => s.micGainDb = v);
                     m.audio.micGainDb = v; // live: takes effect on the next transmission

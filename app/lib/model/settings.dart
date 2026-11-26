@@ -208,6 +208,8 @@ class Settings {
 
   /// Microphone trim in dB on top of the built-in level (-12..+12).
   double micGainDb = 0;
+  /// Microphone level: automatic, or manual with [micGainDb] alone.
+  bool micAuto = true;
 
   /// Diagnostics: save each transmission's microphone audio as WAV files.
   bool txCapture = false;
@@ -336,6 +338,7 @@ class Settings {
       ..defaultPriority = j['defaultPriority'] ?? 1
       ..allowPreemption = j['allowPreemption'] ?? true
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
+      ..micAuto = j['micAuto'] ?? true
       ..txCapture = j['txCapture'] ?? false
       ..noiseSuppression = j['noiseSuppression'] ?? false
       ..rxLevel = j['rxLevel'] ?? true
@@ -414,6 +417,7 @@ class Settings {
         'defaultPriority': defaultPriority,
         'allowPreemption': allowPreemption,
         'micGainDb': micGainDb,
+        'micAuto': micAuto,
         'txCapture': txCapture,
         'noiseSuppression': noiseSuppression,
         'rxLevel': rxLevel,
