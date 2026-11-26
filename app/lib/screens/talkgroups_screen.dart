@@ -386,7 +386,7 @@ class TalkgroupList extends StatelessWidget {
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(Tokens.gutter + 4, 8, Tokens.gutter + 4, 0),
-        child: Text('Tap a group to edit or remove it. Drag the handle to change the order, which the channel knob follows. The switch scans a group, so you hear it too while scan mode is on.',
+        child: Text('Tap a group to edit or remove it. Drag the handle to change the order, which the channel knob follows. The switch is the scan switch: with it on you also hear that group while scan mode is on. Off does not disable the group, you can still select it and talk there.',
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
       ),
     ]);
@@ -418,6 +418,9 @@ class _TalkgroupRow extends StatelessWidget {
         title: t.name,
         subtitle: subtitle,
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          // Named, so it is not taken for "group on/off".
+          Text('Scan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .3, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(width: 6),
           Semantics(
             label: 'Scan ${t.name}',
             child: Switch.adaptive(

@@ -252,7 +252,7 @@ class NowCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                status,
+                heard != null && heard.gssi != active ? '$status on ${m.settings.talkgroups.where((t) => t.gssi == heard.gssi).firstOrNull?.name ?? 'TG ${heard.gssi}'}' : status,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.titleMedium?.copyWith(color: fg, fontWeight: FontWeight.w600),

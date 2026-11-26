@@ -18,6 +18,15 @@ class MemorySecrets implements SecretStore {
 }
 
 void main() {
+  // The Basestation mode is hidden in the app; its tests still cover the code.
+  setUp(() => Settings.basestationModeAvailable = true);
+
+  test('Basestation mode is hidden: a profile saved with it logs in as a Terminal', () {
+    Settings.basestationModeAvailable = false;
+    final s = Settings()..active.basestation = true;
+    expect(s.basestation, isFalse);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   // The audio plugin has no test implementation.
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -351,6 +360,21 @@ void main() {
       expect((m.selectedGssi, m.activeGssi), (2, 2));
       a.elapse(const Duration(seconds: 30));
       expect(m.selectedGssi, 2, reason: 'the radio stays on the group it answered on');
+
+      // Picking a group by hand wins at once over a call on a scanned group.
+      s.talkgroups.add(Talkgroup(3, 'Three'));
+      m.handleEvent(const AppEvent.groupTxStarted(gssi: 1, talker: 7, talkerName: null, priority: 1, emergency: false, callId: 'c9'));
+      m.handleEvent(const AppEvent.audioFocus(callId: 'c9'));
+      expect(m.activeGssi, 1);
+      var told = 0;
+      m.addListener(() => told++);
+      m.selectGroup(3);
+      expect((m.activeGssi, told > 0), (3, true), reason: 'shown before the server answered');
+      m.handleEvent(const AppEvent.groupTxEnded(gssi: 1, callId: 'c9', cause: 0));
+      a.elapse(const Duration(seconds: 1));
+      expect(m.activeGssi, 3, reason: 'no hold on the call that was left');
+      m.selectGroup(2);
+      a.flushMicrotasks();
 
       // Hold time 0: back at once.
       s.scanHoldSeconds = 0;

@@ -191,7 +191,10 @@ class Settings {
   set name(String v) => active.name = v;
   bool get insecureTls => active.insecureTls;
   set insecureTls(bool v) => active.insecureTls = v;
-  bool get basestation => active.basestation;
+  /// The Basestation login mode is hidden: it does not get past the login on
+  /// the server yet. The code stays; set this to bring the mode back.
+  static bool basestationModeAvailable = false;
+  bool get basestation => basestationModeAvailable && active.basestation;
   int get homeMcc => active.homeMcc;
   set homeMcc(int v) => active.homeMcc = v;
   int get homeMnc => active.homeMnc;
@@ -248,7 +251,7 @@ class Settings {
   bool liveActivity = true;
   /// PTT button: false = hold to talk, true = tap to start and tap to stop.
   bool pttToggle = false;
-  /// Tap-to-talk (toggle mode and the Android notification button) stops by itself
+  /// Tap-to-talk (toggle mode) stops by itself
   /// after this many seconds; 0 = off.
   int pttAutoStopSeconds = 60;
 

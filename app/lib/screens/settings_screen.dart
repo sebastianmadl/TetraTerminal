@@ -105,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: m.setPttToggle,
                 ),
                 LabeledSegments<int>(
-                  label: isApple(context) ? 'Toggle mode stops after' : 'Toggle and notification stop after',
+                  label: 'Toggle mode stops after',
                   items: pttAutoStopChoices,
                   value: pttAutoStopChoices.containsKey(s.pttAutoStopSeconds) ? s.pttAutoStopSeconds : 60,
                   onChanged: m.setPttAutoStop,

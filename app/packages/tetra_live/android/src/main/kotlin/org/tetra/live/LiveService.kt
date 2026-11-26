@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
-import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -128,18 +127,6 @@ class LiveService : Service() {
                 b.setWhen(end).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
             } else if (since != null) {
                 b.setWhen(since).setShowWhen(true).setUsesChronometer(true)
-            }
-
-            if (s.transmitting || s.canTalk) {
-                val label = if (s.transmitting) "Stop" else "Talk"
-                val icon = if (s.transmitting) R.drawable.tetra_live_ic_stop else R.drawable.tetra_live_ic_mic
-                @Suppress("DEPRECATION")
-                val action = if (Build.VERSION.SDK_INT >= 23) {
-                    Notification.Action.Builder(Icon.createWithResource(ctx, icon), label, PttReceiver.pendingToggle(ctx, 1)).build()
-                } else {
-                    Notification.Action.Builder(icon, label, PttReceiver.pendingToggle(ctx, 1)).build()
-                }
-                b.addAction(action)
             }
 
             if (TetraLivePlugin.promotedSupported) promote(b, s)

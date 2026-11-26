@@ -241,6 +241,8 @@ void main() {
 
   testWidgets('22 edit connection, Basestation mode', (t) async {
     final m = _model();
+    Settings.basestationModeAvailable = true;
+    addTearDown(() => Settings.basestationModeAvailable = false);
     m.settings.active.basestation = true;
     await _shot(t, '22-edit-connection-basestation', m, const HomeScreen(initialTab: 4), act: (t) async {
       await t.tap(find.byTooltip('Edit TMO Austria'));

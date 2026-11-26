@@ -56,6 +56,7 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                     FieldRow(label: 'Password', initial: p.password, obscure: true, hint: 'Stored in the keychain', onChanged: (v) => p.password = v),
                     SwitchRow(title: 'Accept self-signed certificate', subtitle: 'Lab servers only', value: p.insecureTls, onChanged: (v) => setState(() => p.insecureTls = v)),
                   ]),
+                  if (Settings.basestationModeAvailable)
                   Section(
                     footer: p.basestation
                         ? 'Logs in like a FlowStation. Only if the server\'s operator lets this app in as a station.'
@@ -70,7 +71,7 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                       ),
                     ],
                   ),
-                  if (p.basestation)
+                  if (Settings.basestationModeAvailable && p.basestation)
                     Section(
                       header: 'Control channel',
                       footer: 'For DGNA, as a FlowStation gets it. Empty fields use the Brew host on port 9002 and the Brew login; '

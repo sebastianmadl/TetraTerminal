@@ -219,18 +219,26 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   int? _scanGssi;
   Timer? _scanHold;
 
+  /// The call that ran when the user picked a group by hand: the radio stays
+  /// on the picked group instead of following that call.
+  String? _scanIgnoredCall;
+  GroupCallState? get _scanHeard {
+    final h = heard;
+    return h != null && h.callId == _scanIgnoredCall ? null : h;
+  }
+
   /// The group the radio is on right now: the one heard, the scanned group
   /// still held after its call ([Settings.scanHoldSeconds]), else the selected one.
-  int? get activeGssi => heard?.gssi ?? _scanGssi ?? settings.selectedGssi;
+  int? get activeGssi => _scanHeard?.gssi ?? _scanGssi ?? settings.selectedGssi;
 
   /// A scanned group other than the selected one that PTT would answer on.
   int? get _scanTalkGssi {
-    final g = heard?.gssi ?? _scanGssi;
+    final g = _scanHeard?.gssi ?? _scanGssi;
     return g != null && g != settings.selectedGssi && settings.talkgroups.any((t) => t.gssi == g) ? g : null;
   }
 
   void _trackScan() {
-    final h = heard;
+    final h = _scanHeard;
     if (h != null) {
       _scanHold?.cancel();
       _scanHold = null;
@@ -831,7 +839,11 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> selectGroup(int gssi) async {
     settings.selectedGssi = gssi;
+    // Picked by hand (list or knob): shown at once, and a call running on a
+    // scanned group no longer holds the display.
     _endScanHold();
+    _scanIgnoredCall = focusCallId;
+    notifyListeners();
     await settings.save();
     await _client?.setGroups(groups: Uint32List.fromList(settings.affiliatedGroups), selected: gssi);
     await _client?.selectGroup(gssi: gssi);
