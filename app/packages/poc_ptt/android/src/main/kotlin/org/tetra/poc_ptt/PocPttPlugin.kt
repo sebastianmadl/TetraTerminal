@@ -115,7 +115,7 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
                         val code = i.getIntExtra("keycode", 0).takeIf { it != 0 } ?: i.getIntExtra("keyCode", 0)
                         val keyAction = i.getIntExtra("action", -1)
                         if (code != 0 && (keyAction == KeyEvent.ACTION_DOWN || keyAction == KeyEvent.ACTION_UP)) {
-                            PocPttHub.handleKeyCode(code, keyAction == KeyEvent.ACTION_DOWN)
+                            PocPttHub.handleBroadcastKey(code, keyAction == KeyEvent.ACTION_DOWN)
                         }
                     }
                 }

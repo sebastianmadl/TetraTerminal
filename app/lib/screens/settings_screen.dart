@@ -228,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   footer: 'For Android radios with a hardware PTT key or a channel knob. Tap a key row and press the key '
                       'to teach it. Some radios send a broadcast for PTT instead; enter its "down" action, the "up" action '
                       'is derived. Automation apps can send ${PocPtt.ownDownAction} / ${PocPtt.ownUpAction}. '
-                      'On Hytera radios the status LED shows transmit and receive.',
+                      'On Hytera radios the PTT key and the knob work without teaching, and the status LED shows transmit and receive.',
                   children: [
                     SwitchRow(
                       title: 'Use hardware PTT and knob',
@@ -337,7 +337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
-  static String _keyLabel(int code) => code == 0 ? 'Not set: tap, then press the key' : 'Key code $code';
+  static String _keyLabel(int code) => code == 0 ? 'Automatic. Tap, then press a key to set one' : 'Key code $code';
 
   /// Waits for one hardware key press and stores its code via [set].
   Future<void> _teachKey(TerminalModel m, String title, void Function(int code) set) async {
