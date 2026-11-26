@@ -425,8 +425,12 @@ class _SosButton extends StatelessWidget {
 /// Large-title page scaffold used by every tab: title, optional trailing
 /// actions, then content.
 class TabPage extends StatelessWidget {
-  const TabPage({super.key, required this.title, this.actions = const [], required this.slivers, this.bottom, this.bottomHeight = 150, this.bottomFrosted = false});
+  const TabPage({super.key, required this.title, this.subtitle, this.actions = const [], required this.slivers, this.bottom, this.bottomHeight = 150, this.bottomFrosted = false});
   final String title;
+
+  /// A small second line under the title. A page with one gets a single
+  /// pinned header row on every screen size instead of the large title.
+  final String? subtitle;
   final List<Widget> actions;
   final List<Widget> slivers;
   final Widget? bottom;
@@ -446,8 +450,22 @@ class TabPage extends StatelessWidget {
     final apple = isApple(context);
     // Bottom inset: the floating tab bar (Scaffold.extendBody puts it in the padding).
     final barInset = MediaQuery.of(context).padding.bottom;
+    final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
     final scroll = CustomScrollView(slivers: [
-      if (isApple(context))
+      if (subtitle != null)
+        SliverAppBar(
+          pinned: true,
+          toolbarHeight: compact ? 56 : 64,
+          titleSpacing: Tokens.gutter,
+          backgroundColor: apple ? scheme.surface.withValues(alpha: .9) : null,
+          title: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 24, fontWeight: apple ? FontWeight.w700 : FontWeight.w500, height: 1.15)),
+            if (subtitle!.isNotEmpty)
+              Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: scheme.onSurfaceVariant, height: 1.2)),
+          ]),
+          actions: [...actions, SizedBox(width: apple ? 12 : 8)],
+        )
+      else if (apple)
         CupertinoSliverNavigationBar(
           largeTitle: Text(title),
           backgroundColor: scheme.surface.withValues(alpha: .9),
@@ -456,7 +474,7 @@ class TabPage extends StatelessWidget {
         )
       else
         // A small screen (PoC radios) has no room for the large title: one pinned row.
-        if (MediaQuery.sizeOf(context).height < TabPage.compactHeight)
+        if (compact)
           SliverAppBar(pinned: true, toolbarHeight: 52, title: Text(title), actions: [...actions, const SizedBox(width: 8)])
         else
           SliverAppBar.large(title: Text(title), actions: [...actions, const SizedBox(width: 8)]),

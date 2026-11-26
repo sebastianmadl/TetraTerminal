@@ -28,6 +28,7 @@ class TalkgroupsScreen extends StatelessWidget {
 
     return TabPage(
       title: title,
+      subtitle: m.settings.active.displayName,
       actions: const [LinkPill()],
       slivers: [
         SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: 4, bottom: compact ? 8 : 12), child: const NowCard())),
