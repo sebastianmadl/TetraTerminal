@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:poc_ptt/poc_ptt.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,6 +12,7 @@ import '../model/settings.dart';
 import '../model/terminal_model.dart';
 import '../services/version.dart';
 import '../ui/adaptive.dart';
+import '../ui/level_meter.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
 import 'profile_sheet.dart';
@@ -189,15 +192,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     s.save();
                   },
                 ),
-                SwitchRow(
-                  title: 'Even out received volume',
-                  subtitle: 'Quiet and loud talkers play at the same level',
-                  value: s.rxLevel,
-                  onChanged: (v) {
-                    setState(() => s.rxLevel = v);
-                    m.audio.rxLevel = v;
-                    s.save();
-                  },
+                Tile(
+                  title: 'Receive audio',
+                  subtitle: 'Volume boost, level control, maximum level, test tone',
+                  onTap: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const RxAudioScreen())),
                 ),
                 SwitchRow(
                   title: 'Record my transmissions',
@@ -224,6 +222,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (s.headsetEnabled)
                     FieldRow(label: 'Address', initial: s.headsetAddress, hint: 'Empty = first paired Savox', onChanged: (v) => s.headsetAddress = v.trim()),
                 ]),
+              if (Platform.isAndroid)
+                Section(
+                  header: 'Radio buttons (PoC devices)',
+                  footer: 'For Android radios with a hardware PTT key or a channel knob. Tap a key row and press the key '
+                      'to teach it. Some radios send a broadcast for PTT instead; enter its "down" action, the "up" action '
+                      'is derived. Automation apps can send ${PocPtt.ownDownAction} / ${PocPtt.ownUpAction}. '
+                      'On Hytera radios the status LED shows transmit and receive.',
+                  children: [
+                    SwitchRow(
+                      title: 'Use hardware PTT and knob',
+                      value: s.pocPttEnabled,
+                      onChanged: (v) => setState(() => s.pocPttEnabled = v),
+                    ),
+                    if (s.pocPttEnabled) ...[
+                      Tile(
+                        title: 'PTT key',
+                        subtitle: _keyLabel(s.pocPttKeyCode),
+                        onTap: () => _teachKey(m, 'PTT key', (c) => s.pocPttKeyCode = c),
+                      ),
+                      FieldRow(
+                        label: 'PTT broadcast',
+                        initial: s.pocPttDownAction,
+                        hint: 'e.g. com.example.ptt.down',
+                        keyboard: TextInputType.url,
+                        onChanged: (v) => setState(() => s.pocPttDownAction = v.trim()),
+                      ),
+                      if (s.pocPttDownAction.isNotEmpty)
+                        Tile(title: 'Release broadcast', subtitle: deriveUpAction(s.pocPttDownAction) ?? 'Needs "down" in the action'),
+                      Tile(
+                        title: 'Knob: next talkgroup',
+                        subtitle: _keyLabel(s.knobNextKey),
+                        onTap: () => _teachKey(m, 'Knob: next talkgroup', (c) => s.knobNextKey = c),
+                      ),
+                      Tile(
+                        title: 'Knob: previous talkgroup',
+                        subtitle: _keyLabel(s.knobPrevKey),
+                        onTap: () => _teachKey(m, 'Knob: previous talkgroup', (c) => s.knobPrevKey = c),
+                      ),
+                      SwitchRow(
+                        title: 'Wake screen and open the app on PTT',
+                        value: s.pocPttWake,
+                        onChanged: (v) => setState(() => s.pocPttWake = v),
+                      ),
+                      FutureBuilder<bool>(
+                        future: PocPtt.keyServiceEnabled(),
+                        builder: (context, snap) => Tile(
+                          title: 'Keys in the background',
+                          subtitle: snap.data == true
+                              ? 'On: keys also work with the app closed or the screen locked'
+                              : 'Off: keys only work while the app is open. Tap and switch on "TETRA Terminal PTT key" in Accessibility',
+                          onTap: () async {
+                            await PocPtt.openKeyServiceSettings();
+                            if (mounted) setState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+                    SwitchRow(
+                      title: 'On-screen PTT button',
+                      subtitle: 'Off on radios with a hardware PTT key',
+                      value: s.showPttButton,
+                      onChanged: (v) => setState(() => s.showPttButton = v),
+                    ),
+                  ],
+                ),
               Section(header: 'Location (LIP)', children: [
                 SwitchRow(title: 'Send location reports', value: s.lipEnabled, onChanged: (v) => setState(() => s.lipEnabled = v)),
                 if (s.lipEnabled) ...[
@@ -273,6 +336,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
+
+  static String _keyLabel(int code) => code == 0 ? 'Not set: tap, then press the key' : 'Key code $code';
+
+  /// Waits for one hardware key press and stores its code via [set].
+  Future<void> _teachKey(TerminalModel m, String title, void Function(int code) set) async {
+    var cancelled = false;
+    final dialog = showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: const Text('Press the key on your radio now…'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              cancelled = true;
+              m.cancelPocPttLearn();
+              set(0);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remove'),
+          ),
+          TextButton(
+            onPressed: () {
+              cancelled = true;
+              m.cancelPocPttLearn();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    // Dismissing the dialog (back gesture, tap outside) also stops learning.
+    unawaited(dialog.then((_) {
+      cancelled = true;
+      m.cancelPocPttLearn();
+    }));
+    final code = await m.learnPocPttKey();
+    if (!mounted) return;
+    if (!cancelled) {
+      cancelled = true;
+      Navigator.of(context).pop();
+      if (code != null) set(code);
+    }
+    setState(() {});
+  }
 }
 
 /// Role, name and the GitHub profile link below. The link keeps the text colour
@@ -300,5 +409,102 @@ class Credit extends StatelessWidget {
         ),
       ),
     ]);
+  }
+}
+
+/// Receive audio: boost, automatic level with its target, the maximum level,
+/// and a test tone to set them without waiting for a call.
+class RxAudioScreen extends StatefulWidget {
+  const RxAudioScreen({super.key});
+  @override
+  State<RxAudioScreen> createState() => _RxAudioScreenState();
+}
+
+class _RxAudioScreenState extends State<RxAudioScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<TerminalModel>();
+    final s = m.settings;
+    final scheme = Theme.of(context).colorScheme;
+    String db(double v) => '${v > 0 ? '+' : ''}${v.round()} dB';
+    return Scaffold(
+      appBar: AppBar(title: const Text('Receive audio')),
+      body: ListView(children: [
+        Section(header: 'Volume', footer: 'Raises what you hear on top of the device volume.', children: [
+          SliderRow(
+            title: 'Boost',
+            valueLabel: db(s.rxGainDb),
+            value: s.rxGainDb,
+            min: 0,
+            max: 18,
+            divisions: 18,
+            onChanged: (v) {
+              setState(() => s.rxGainDb = v);
+              m.audio.rxGainDb = v;
+            },
+          ),
+        ]),
+        Section(header: 'Automatic', footer: 'The level control brings quiet and loud talkers to the target level. The maximum level limits peaks, with or without it.', children: [
+          SwitchRow(
+            title: 'Level control (AGC)',
+            subtitle: 'Quiet and loud talkers play at the same level',
+            value: s.rxLevel,
+            onChanged: (v) {
+              setState(() => s.rxLevel = v);
+              m.audio.rxLevel = v;
+              s.save();
+            },
+          ),
+          if (s.rxLevel)
+            SliderRow(
+              title: 'Target level',
+              valueLabel: db(s.rxTargetDb),
+              value: s.rxTargetDb,
+              min: -30,
+              max: -9,
+              divisions: 21,
+              onChanged: (v) {
+                setState(() => s.rxTargetDb = v);
+                m.audio.rxTargetDb = v;
+              },
+            ),
+          SliderRow(
+            title: 'Maximum level',
+            valueLabel: db(s.rxMaxDb),
+            value: s.rxMaxDb,
+            min: -12,
+            max: 0,
+            divisions: 12,
+            onChanged: (v) {
+              setState(() => s.rxMaxDb = v);
+              m.audio.rxMaxDb = v;
+            },
+          ),
+        ]),
+        Section(header: 'Test', footer: '1 kHz at -12 dB for two seconds, through the settings above like a received call.', children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Tokens.gutter, 16, Tokens.gutter, 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              LevelBar(label: 'RX', meter: m.audio.rxMeter),
+              const SizedBox(height: 14),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: scheme.primary, minimumSize: const Size.fromHeight(46)),
+                onPressed: () {
+                  s.save();
+                  m.audio.playTestTone();
+                },
+                child: const Text('Play test tone'),
+              ),
+            ]),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  @override
+  void deactivate() {
+    context.read<TerminalModel>().settings.save();
+    super.deactivate();
   }
 }

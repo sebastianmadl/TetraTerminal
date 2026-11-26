@@ -218,6 +218,18 @@ class Settings {
   /// Bring received speech to one level.
   bool rxLevel = true;
 
+  /// Extra receive gain in dB (0..18), on top of the device volume.
+  double rxGainDb = 0;
+
+  /// Level the receive level control aims for, dB below full scale (rms).
+  double rxTargetDb = -21;
+
+  /// Highest receive peak, dB below full scale.
+  double rxMaxDb = -3;
+
+  /// Scan mode: also hear the groups marked for scanning. Off: only the selected group.
+  bool scanMode = true;
+
   /// Transmit buffer in ms (180..1020, default 240): voice held before sending starts.
   int txBufferMs = 240;
 
@@ -247,9 +259,23 @@ class Settings {
   /// MAC like 00:15:BE:0F:12:26; empty = first paired "Savox…" device.
   String headsetAddress = '';
 
+  // Hardware PTT of Android PoC radios (key code and/or radio broadcast)
+  bool pocPttEnabled = false;
+  /// Android key code; 0 = none.
+  int pocPttKeyCode = 0;
+  /// Broadcast the radio sends on PTT press; release is derived ("down" -> "up").
+  String pocPttDownAction = '';
+  /// Bring the app to the front (and over the lock screen) on PTT.
+  bool pocPttWake = false;
+  /// Rotary knob key codes (next / previous talkgroup); 0 = none.
+  int knobNextKey = 0;
+  int knobPrevKey = 0;
+  /// Android: the on-screen PTT button (off on radios with a hardware PTT).
+  bool showPttButton = true;
+
   bool get isConfigured => active.isConfigured;
 
-  List<int> get affiliatedGroups => talkgroups.where((t) => t.scan || t.gssi == selectedGssi).map((t) => t.gssi).toList();
+  List<int> get affiliatedGroups => talkgroups.where((t) => (scanMode && t.scan) || t.gssi == selectedGssi).map((t) => t.gssi).toList();
 
   /// Groups whose network differs from the home network.
   List<Talkgroup> get groupsOfOtherNetworks => talkgroups.where((t) => t.otherNetwork && !(t.mcc == homeMcc && t.mnc == homeMnc)).toList();
@@ -289,6 +315,10 @@ class Settings {
       ..txCapture = j['txCapture'] ?? false
       ..noiseSuppression = j['noiseSuppression'] ?? false
       ..rxLevel = j['rxLevel'] ?? true
+      ..rxGainDb = (j['rxGainDb'] as num?)?.toDouble() ?? 0
+      ..rxTargetDb = (j['rxTargetDb'] as num?)?.toDouble() ?? -21
+      ..rxMaxDb = (j['rxMaxDb'] as num?)?.toDouble() ?? -3
+      ..scanMode = j['scanMode'] ?? true
       ..txBufferMs = ((j['txBufferMs'] ?? 240) as int).clamp(180, 1020)
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true
@@ -301,7 +331,14 @@ class Settings {
       ..lipIntervalSeconds = j['lipIntervalSeconds'] ?? 60
       ..lipOnPtt = j['lipOnPtt'] ?? true
       ..headsetEnabled = j['headsetEnabled'] ?? false
-      ..headsetAddress = j['headsetAddress'] ?? '';
+      ..headsetAddress = j['headsetAddress'] ?? ''
+      ..pocPttEnabled = j['pocPttEnabled'] ?? false
+      ..pocPttKeyCode = j['pocPttKeyCode'] ?? 0
+      ..pocPttDownAction = j['pocPttDownAction'] ?? ''
+      ..pocPttWake = j['pocPttWake'] ?? false
+      ..knobNextKey = j['knobNextKey'] ?? 0
+      ..knobPrevKey = j['knobPrevKey'] ?? 0
+      ..showPttButton = j['showPttButton'] ?? true;
     final list = j['profiles'] as List?;
     // Up to 1.3 there was one login stored flat; it becomes the first profile.
     s.profiles = list == null || list.isEmpty
@@ -347,6 +384,10 @@ class Settings {
         'txCapture': txCapture,
         'noiseSuppression': noiseSuppression,
         'rxLevel': rxLevel,
+        'rxGainDb': rxGainDb,
+        'rxTargetDb': rxTargetDb,
+        'rxMaxDb': rxMaxDb,
+        'scanMode': scanMode,
         'txBufferMs': txBufferMs,
         'backgroundAudio': backgroundAudio,
         'speakerOut': speakerOut,
@@ -360,6 +401,13 @@ class Settings {
         'lipOnPtt': lipOnPtt,
         'headsetEnabled': headsetEnabled,
         'headsetAddress': headsetAddress,
+        'pocPttEnabled': pocPttEnabled,
+        'pocPttKeyCode': pocPttKeyCode,
+        'pocPttDownAction': pocPttDownAction,
+        'pocPttWake': pocPttWake,
+        'knobNextKey': knobNextKey,
+        'knobPrevKey': knobPrevKey,
+        'showPttButton': showPttButton,
       }),
     );
   }

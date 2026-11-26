@@ -1,0 +1,23 @@
+name: poc_ptt
+description: Hardware PTT on Android PoC radios (key code or broadcast) for TETRA Terminal.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.tetra.poc_ptt
+        pluginClass: PocPttPlugin

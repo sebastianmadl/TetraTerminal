@@ -8,19 +8,25 @@ import '../ui/adaptive.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
+import 'talkgroups_screen.dart';
 
-/// Own contacts (ISSI and name). The RadioID.net database is not listed here;
-/// it only fills in names elsewhere (Settings shows how many are loaded).
+/// Own contacts (ISSI and name) and, behind the switch on top, the talkgroups.
+/// The RadioID.net database is not listed here; it only fills in names
+/// elsewhere (Settings shows how many are loaded).
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key, this.onCall});
   /// Opens the keypad with this ISSI.
   final void Function(int issi)? onCall;
   @override
-  State<ContactsScreen> createState() => _ContactsScreenState();
+  State<ContactsScreen> createState() => ContactsScreenState();
 }
 
-class _ContactsScreenState extends State<ContactsScreen> {
+class ContactsScreenState extends State<ContactsScreen> {
   String _query = '';
+  bool _groups = false;
+
+  /// Shows the talkgroup list (from the radio screen's "Edit groups").
+  void showGroups() => setState(() => _groups = true);
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +39,21 @@ class _ContactsScreenState extends State<ContactsScreen> {
       title: 'Contacts',
       actions: [
         IconButton(
-          tooltip: 'Add contact',
-          icon: Icon(pick(context, Icons.person_add_alt, CupertinoIcons.add)),
-          onPressed: () => editContact(context, m, null),
+          tooltip: _groups ? 'Add talkgroup' : 'Add contact',
+          icon: Icon(pick(context, _groups ? Icons.group_add_outlined : Icons.person_add_alt, CupertinoIcons.add)),
+          onPressed: () => _groups ? editTalkgroup(context, m, null) : editContact(context, m, null),
         ),
       ],
       slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Tokens.gutter, 4, Tokens.gutter, 8),
+            child: SizedBox(width: double.infinity, child: Segments<bool>(items: const {false: 'Contacts', true: 'Groups'}, value: _groups, onChanged: (v) => setState(() => _groups = v))),
+          ),
+        ),
+        if (_groups)
+          const SliverToBoxAdapter(child: TalkgroupList())
+        else ...[
         if (m.contacts.contacts.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
@@ -81,6 +96,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 ),
             ]),
           ),
+        ],
       ],
     );
   }

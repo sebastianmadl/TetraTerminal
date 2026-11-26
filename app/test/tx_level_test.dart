@@ -144,6 +144,44 @@ void main() {
     expect(onset, lessThan(settled * 1.5), reason: 'onset peak $onset, settled peak $settled');
   });
 
+  test('receive boost raises the level, and the maximum level is never exceeded', () {
+    Int16List tone(int amp) => Int16List.fromList([for (var i = 0; i < 4800; i++) (amp * math.sin(2 * math.pi * 1000 * i / 8000)).round()]);
+    int peak(Int16List p) => p.skip(800).map((v) => v.abs()).reduce(math.max);
+    // Level control off: +6 dB doubles a quiet tone.
+    final boost = RxLeveller(enabled: false)..gainDb = 6;
+    expect(peak(boost.process(tone(2000))), closeTo(3990, 60));
+    // A loud tone with +18 dB stays under the -6 dB ceiling instead of clipping.
+    final hot = RxLeveller(enabled: false)
+      ..gainDb = 18
+      ..maxDb = -6;
+    final ceiling = 32767 * math.pow(10, -6 / 20);
+    expect(peak(hot.process(tone(20000))), lessThanOrEqualTo(ceiling.ceil()));
+    expect(peak(hot.process(tone(20000))), greaterThan(ceiling * .9));
+    // The level control aims for the chosen target.
+    for (final target in [-27.0, -15.0]) {
+      final r = RxLeveller()..targetDb = target;
+      final pcm = Int16List.fromList(speech(1500, seconds: 6).map((v) => v.round()).toList());
+      final out = r.process(pcm);
+      final tail = out.sublist(out.length - 8000);
+      final rms = math.sqrt(tail.map((v) => v * v).reduce((a, b) => a + b) / tail.length);
+      expect(20 * math.log(rms / 32768) / math.ln10, closeTo(target, 4), reason: 'target $target');
+    }
+  });
+
+  test('level meter: peak in dB, silent again when no audio follows', () {
+    var now = DateTime(2026);
+    final meter = LevelMeter(clock: () => now);
+    expect(meter.db, LevelMeter.floorDb);
+    meter.add(Int16List.fromList([0, 16384, -100]));
+    expect(meter.db, closeTo(-6.02, .01));
+    meter.add(Int16List(480));
+    expect(meter.db, LevelMeter.floorDb);
+    meter.add(Int16List.fromList([-32768]));
+    expect(meter.db, 0);
+    now = now.add(const Duration(milliseconds: 300));
+    expect(meter.db, LevelMeter.floorDb);
+  });
+
   test('WAV header and samples', () {
     final w = wavBytes(Int16List.fromList([1, -2, 300]), 8000);
     expect(w.length, 44 + 6);

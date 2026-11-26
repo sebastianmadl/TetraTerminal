@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="poc_ptt_service_label">TETRA Terminal PTT key</string>
+    <string name="poc_ptt_service_description">Lets the hardware PTT key of your radio key TETRA Terminal while the app is in the background or the screen is locked. Only the PTT key you chose in the app is used; nothing on screen is read.</string>
+</resources>

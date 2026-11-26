@@ -16,6 +16,7 @@ import 'package:tetra_terminal/model/contacts.dart';
 import 'package:tetra_terminal/model/terminal_model.dart';
 import 'package:tetra_terminal/screens/home_screen.dart';
 import 'package:tetra_terminal/screens/messages_screen.dart';
+import 'package:tetra_terminal/screens/settings_screen.dart';
 import 'package:tetra_terminal/src/rust/api.dart';
 import 'package:tetra_terminal/ui/theme.dart';
 
@@ -150,6 +151,28 @@ void main() {
 
   testWidgets('12 contacts', (t) async {
     await _shot(t, '12-contacts', _model(), const HomeScreen(initialTab: 2));
+  });
+
+  testWidgets('23 radio, group menu open', (t) async {
+    await _shot(t, '23-radio-group-menu', _model(), const HomeScreen(), act: (t) async {
+      await t.tap(find.textContaining('Scan on'));
+    });
+  });
+
+  testWidgets('24 contacts, groups', (t) async {
+    await _shot(t, '24-contacts-groups', _model(), const HomeScreen(initialTab: 2), act: (t) async {
+      await t.tap(find.text('Groups'));
+    });
+  });
+
+  testWidgets('25 receive audio', (t) async {
+    await _shot(t, '25-receive-audio', _model(), const RxAudioScreen());
+  });
+
+  testWidgets('26 android radio, group menu open', (t) async {
+    await _shot(t, '26-android-radio-group-menu', _model(), const HomeScreen(), p: TargetPlatform.android, act: (t) async {
+      await t.tap(find.textContaining('Scan on'));
+    });
   });
 
   testWidgets('05 incoming call', (t) async {

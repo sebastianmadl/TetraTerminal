@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:poc_ptt/poc_ptt.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
@@ -148,6 +149,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   int? _headsetVolume;
   bool _swallowRelease = false;
 
+  StreamSubscription<PocPttEvent>? _pocSub;
+  bool _pocLearning = false;
+
   bool get transmitting => myTxCallId != null;
 
   @override
@@ -155,6 +159,19 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     super.notifyListeners();
     // The widget always gets the status; the Live Activity runs while `live`.
     live.update(liveStatus());
+    _updateLed();
+  }
+
+  String _led = 'off';
+
+  /// Status LED of a PoC radio: red while we transmit, green while we hear
+  /// someone (the radio's own colours; Hytera firmware only, see poc_ptt).
+  void _updateLed() {
+    if (!PocPtt.supported) return;
+    final want = !settings.pocPttEnabled ? 'off' : (transmitting ? 'tx' : (heard != null || privateCall?.state == 'connected' ? 'rx' : 'off'));
+    if (want == _led) return;
+    _led = want;
+    unawaited(PocPtt.led(want));
   }
 
   String? _lastTalker;
@@ -209,10 +226,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     audio.captureTx = settings.txCapture;
     audio.noiseSuppression = settings.noiseSuppression;
     audio.rxLevel = settings.rxLevel;
+    audio.rxGainDb = settings.rxGainDb;
+    audio.rxTargetDb = settings.rxTargetDb;
+    audio.rxMaxDb = settings.rxMaxDb;
     audio.onTxCapture = TxCaptureStore.save;
     await audio.init();
     audio.micGainDb = settings.micGainDb;
     await _startPttInput();
+    await _startPocPtt();
     if (settings.isConfigured) await connect();
   }
 
@@ -225,6 +246,80 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     _pttSub = input.events.listen(_onPttInput);
     await input.start();
     notifyListeners();
+  }
+
+  /// Hardware PTT of Android PoC radios (key code and/or radio broadcast).
+  Future<void> _startPocPtt() async {
+    if (!PocPtt.supported) return;
+    _pocSub ??= PocPtt.events.listen((e) {
+      if (_pocLearning) return;
+      switch (e) {
+        case PocPttPress(:final pressed):
+          _onPttInput(pressed ? PttPressed() : PttReleased());
+        case PocPttKnob(:final step):
+          stepTalkgroup(step);
+        case PocPttLearned():
+      }
+    });
+    if (!settings.pocPttEnabled) {
+      await PocPtt.stop();
+      return;
+    }
+    await PocPtt.configure(
+      keyCode: settings.pocPttKeyCode,
+      downAction: settings.pocPttDownAction,
+      wake: settings.pocPttWake,
+      knobNextKey: settings.knobNextKey,
+      knobPrevKey: settings.knobPrevKey,
+    );
+  }
+
+  /// The on-screen PTT button (Android can hide it for radios with a hardware PTT).
+  bool get showSoftPtt => !Platform.isAndroid || settings.showPttButton;
+
+  /// Rotary knob: the next (+1) or previous (-1) talkgroup in the list, wrapping
+  /// around. Not while we transmit.
+  Future<void> stepTalkgroup(int step) async {
+    final tgs = settings.talkgroups;
+    if (tgs.isEmpty || transmitting) return;
+    final i = tgs.indexWhere((t) => t.gssi == settings.selectedGssi);
+    final next = tgs[((i < 0 ? 0 : i + step) % tgs.length + tgs.length) % tgs.length];
+    toast = next.name.isEmpty ? 'TG ${next.gssi}' : next.name;
+    await selectGroup(next.gssi);
+  }
+
+  /// Waits for the next hardware key press and returns its key code (null on
+  /// timeout or [cancelPocPttLearn]). The key is not used while learning.
+  Future<int?> learnPocPttKey({Duration timeout = const Duration(seconds: 15)}) async {
+    if (!PocPtt.supported) return null;
+    cancelPocPttLearn();
+    final done = _learn = Completer<int?>();
+    final sub = PocPtt.events.listen((e) {
+      if (e is PocPttLearned && !done.isCompleted) done.complete(e.keyCode);
+    });
+    final timer = Timer(timeout, () {
+      if (!done.isCompleted) done.complete(null);
+    });
+    _pocLearning = true;
+    try {
+      await PocPtt.learn(true);
+      return await done.future;
+    } finally {
+      timer.cancel();
+      await sub.cancel();
+      if (identical(_learn, done)) {
+        _learn = null;
+        _pocLearning = false;
+        await PocPtt.learn(false);
+      }
+    }
+  }
+
+  Completer<int?>? _learn;
+
+  void cancelPocPttLearn() {
+    final l = _learn;
+    if (l != null && !l.isCompleted) l.complete(null);
   }
 
   Future<void> _stopPttInput() async {
@@ -670,6 +765,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Scan mode on: the groups marked for scanning are heard too. Off: only the selected one.
+  Future<void> setScanMode(bool on) async {
+    settings.scanMode = on;
+    await saveTalkgroups();
+  }
+
   Future<void> saveTalkgroups() async {
     if (settings.selectedGssi != null && !settings.talkgroups.any((t) => t.gssi == settings.selectedGssi)) {
       settings.selectedGssi = settings.talkgroups.firstOrNull?.gssi;
@@ -772,8 +873,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     audio.captureTx = s.txCapture;
     audio.noiseSuppression = s.noiseSuppression;
     audio.rxLevel = s.rxLevel;
+    audio.rxGainDb = s.rxGainDb;
+    audio.rxTargetDb = s.rxTargetDb;
+    audio.rxMaxDb = s.rxMaxDb;
     await s.save();
     await _startPttInput();
+    await _startPocPtt();
     await connect();
   }
 
@@ -781,6 +886,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopPttInput();
+    _pocSub?.cancel();
+    PocPtt.stop();
     disconnect();
     location.stop();
     audio.dispose();

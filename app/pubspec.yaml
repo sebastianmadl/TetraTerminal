@@ -36,6 +36,8 @@ dependencies:
   # Bluetooth PTT headset (Savox BTH-101), Android
   headset_ptt:
     path: packages/headset_ptt
+  poc_ptt:
+    path: packages/poc_ptt
   # Android: ongoing notification (Live Update) with PTT + home screen widget
   tetra_live:
     path: packages/tetra_live

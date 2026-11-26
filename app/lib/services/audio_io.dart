@@ -8,6 +8,7 @@ import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:record/record.dart' hide IosAudioCategory;
 import 'package:tetra_mic/tetra_mic.dart';
 
+import '../src/rust/api.dart' show TxDenoiser;
 import 'noise_suppressor.dart';
 import 'tx_level.dart';
 import 'upsampler.dart';
@@ -52,6 +53,38 @@ class AudioIO {
   bool get rxLevel => _rx.enabled;
   set rxLevel(bool on) => _rx.enabled = on;
   final _rx = RxLeveller();
+
+  /// Extra receive gain in dB, on top of the device volume.
+  set rxGainDb(double db) => _rx.gainDb = db;
+
+  /// Speech level the receive level control aims for (dB below full scale).
+  set rxTargetDb(double db) => _rx.targetDb = db;
+
+  /// Highest receive peak (dB below full scale).
+  set rxMaxDb(double db) => _rx.maxDb = db;
+
+  /// Peak levels for the meters: encoder input and what goes to the speaker.
+  final txMeter = LevelMeter();
+  final rxMeter = LevelMeter();
+
+  /// Plays a 1 kHz tone at -12 dBFS for two seconds through the receive
+  /// chain, to set the receive level without waiting for a call.
+  void playTestTone() {
+    _tone?.cancel();
+    var n = 0;
+    _tone = Timer.periodic(const Duration(milliseconds: 60), (t) {
+      if (n >= 34) {
+        t.cancel();
+        _tone = null;
+        return;
+      }
+      play(Int16List.fromList([for (var i = 0; i < 480; i++) (8231 * math.sin(2 * math.pi * 1000 * (n * 480 + i) / sampleRate)).round()]));
+      n++;
+    });
+  }
+
+  bool get testTonePlaying => _tone != null;
+  Timer? _tone;
 
   /// Android capture; iOS uses [TetraMic], which survives hardware changes.
   /// Created on first use, so iOS never instantiates it.
@@ -201,6 +234,7 @@ class AudioIO {
         final copy = Uint8List.fromList(all.sublist(0, even));
         final raw = copy.buffer.asInt16List();
         final samples = _decim.process(raw);
+        txMeter.add(samples);
         capture?.addRaw(raw, _micRate);
         capture?.addEncoderInput(samples, sampleRate);
         if (samples.isNotEmpty) onPcm(samples);
@@ -284,7 +318,9 @@ class AudioIO {
       _feed(Int16List(pcm.length));
     }
     _lastPlay = now;
-    _feed(_rx.process(pcm));
+    final out = _rx.process(pcm);
+    rxMeter.add(out);
+    _feed(out);
   }
 
   Timer? _keepAlive;
@@ -314,6 +350,7 @@ class AudioIO {
   }
 
   Future<void> dispose() async {
+    _tone?.cancel();
     keepAlive(false);
     await stopMic();
     await _rec?.dispose();
@@ -424,8 +461,11 @@ class _Decimator2 {
   /// Rumble and hum off before level control and encoder (both platforms).
   final _hp = HighPass();
 
-  /// Background noise suppression, switched in the settings.
-  final _ns = NoiseSuppressor();
+  /// Background noise suppression, switched in the settings: speexdsp in the
+  /// Rust core; the Dart [NoiseSuppressor] only where the core is not loaded
+  /// (unit tests).
+  Int16List Function(Int16List)? _ns;
+  TxDenoiser? _speex;
   bool suppress = false;
   bool _suppressing = false; // fixed for one transmission
 
@@ -438,7 +478,7 @@ class _Decimator2 {
   late double gain = level == null ? _baseGain : 1.0;
 
   void setTrimDb(double db) => gain = (level == null ? _baseGain : 1.0) * math.pow(10, db / 20).toDouble();
-  final _lim = _Limiter();
+  final _lim = PeakLimiter();
   static final List<double> _h = _design();
 
   static List<double> _design() {
@@ -463,10 +503,23 @@ class _Decimator2 {
     _lim.reset();
     level?.reset();
     _hp.reset();
-    _ns.reset();
+    _speex?.dispose();
+    _speex = null;
+    _ns = null;
     _suppressing = suppress;
+    if (_suppressing) _ns = _newDenoiser();
     _hist = List<double>.filled(_taps - 1, 0);
     _count = 0;
+  }
+
+  Int16List Function(Int16List) _newDenoiser() {
+    try {
+      final d = _speex = TxDenoiser();
+      return (x) => d.process(pcm: x);
+    } catch (_) {
+      final ns = NoiseSuppressor();
+      return (x) => Int16List.fromList([for (final v in x) ns.process(v.toDouble()).round().clamp(-32768, 32767)]);
+    }
   }
 
   Int16List process(Int16List input) {
@@ -478,7 +531,7 @@ class _Decimator2 {
     for (var i = 0; i < n; i++) {
       c[_taps - 1 + i] = input[i].toDouble();
     }
-    final out = <int>[];
+    final hp = <double>[];
     for (var k = 0; k < n; k++) {
       if ((_count + k).isEven) {
         var y = 0.0;
@@ -486,57 +539,18 @@ class _Decimator2 {
         for (var t = 0; t < _taps; t++) {
           y += _h[t] * c[base - t];
         }
-        var h = _hp.process(y);
-        if (_suppressing) h = _ns.process(h);
-        out.add(_lim.process((level?.process(h) ?? h) * gain).round().clamp(-32768, 32767));
+        hp.add(_hp.process(y));
       }
     }
     _count += n;
     _hist = c.sublist(n);
-    return Int16List.fromList(out);
-  }
-}
-
-/// Look-ahead peak limiter. Louder input is attenuated instead of being allowed
-/// to overdrive the ACELP encoder (harsh beeps on loud speech). The gain ramps
-/// down smoothly *before* a peak (the signal is delayed by [_look] samples), so
-/// limiting adds no clicks, and recovers slowly (~100 ms) so sustained loud
-/// speech is not amplitude-modulated.
-class _Limiter {
-  static const _look = 16; // 2 ms at 8 kHz
-  static const _limit = 12000.0;
-  static const _release = 0.0012;
-
-  // growable: we shift these (removeAt/add) every sample; filled() is fixed-length by default.
-  final List<double> _g = List<double>.filled(2 * _look + 1, 1.0, growable: true); // wanted gains, oldest first
-  final List<double> _x = List<double>.filled(_look + 1, 0.0, growable: true); // delayed signal
-  double _r = 1.0;
-
-  void reset() {
-    _g.fillRange(0, _g.length, 1.0);
-    _x.fillRange(0, _x.length, 0.0);
-    _r = 1.0;
+    final ns = _ns;
+    final List<num> clean = (_suppressing && ns != null && hp.isNotEmpty)
+        ? ns(Int16List.fromList([for (final v in hp) v.round().clamp(-32768, 32767)]))
+        : hp;
+    return Int16List.fromList([
+      for (final h in clean) _lim.process((level?.process(h.toDouble()) ?? h.toDouble()) * gain).round().clamp(-32768, 32767),
+    ]);
   }
 
-  double process(double x) {
-    _g.removeAt(0);
-    final a = x.abs();
-    _g.add(a > _limit ? _limit / a : 1.0);
-    _x.removeAt(0);
-    _x.add(x);
-    // Sliding minimum over the look-ahead window, averaged over the same length:
-    // guarantees the smoothed gain is <= the wanted gain at every sample.
-    var sum = 0.0;
-    for (var p = 0; p <= _look; p++) {
-      var m = 1.0;
-      for (var q = p; q <= p + _look; q++) {
-        if (_g[q] < m) m = _g[q];
-      }
-      sum += m;
-    }
-    final smooth = sum / (_look + 1);
-    final recovering = _r + (1.0 - _r) * _release;
-    _r = smooth < recovering ? smooth : recovering;
-    return _x[0] * _r;
-  }
 }

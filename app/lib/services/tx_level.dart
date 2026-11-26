@@ -68,7 +68,7 @@ class TxLevel {
   TxLevel({this.targetRms = 2000, this.maxGainDb = 12, this.minGainDb = -30, this.gateRms = 120, this.speechOverNoiseDb = 9});
 
   /// Speech level after the control (about -24 dBov).
-  final double targetRms;
+  double targetRms;
   final double maxGainDb;
   final double minGainDb;
 
@@ -146,9 +146,10 @@ class TxLevel {
 class RxLeveller {
   RxLeveller({this.enabled = true});
 
+  /// Automatic level on or off. Off: only [gainDb] and the ceiling apply.
   bool enabled;
 
-  /// Speech level after the control (about -21 dBov).
+  /// Default speech level after the control (about -21 dBov).
   static const targetRms = 3000.0;
 
   /// Look-ahead (30 ms): the gain for a sample is the one the control has
@@ -158,23 +159,118 @@ class RxLeveller {
   static const lookAhead = 240;
 
   final _level = TxLevel(targetRms: targetRms, maxGainDb: 15, gateRms: 60);
+  final _lim = PeakLimiter(limit: 32767 * 0.7079);
   final _delay = Float64List(lookAhead);
   int _pos = 0;
+  double _boost = 1;
+
+  /// Extra gain on top of everything else, in dB (0 = none).
+  double get gainDb => 20 * math.log(_boost) / math.ln10;
+  set gainDb(double db) => _boost = math.pow(10, db / 20).toDouble();
+
+  /// Speech level the automatic level aims for, in dB below full scale (rms).
+  double get targetDb => 20 * math.log(_level.targetRms / 32768) / math.ln10;
+  set targetDb(double db) => _level.targetRms = 32768 * math.pow(10, db / 20).toDouble();
+
+  /// Highest peak that leaves the control, in dB below full scale.
+  double get maxDb => 20 * math.log(_lim.limit / 32767) / math.ln10;
+  set maxDb(double db) => _lim.limit = 32767 * math.pow(10, db.clamp(-40, 0) / 20).toDouble();
 
   Int16List process(Int16List pcm) {
-    if (!enabled) return pcm;
+    // Nothing to do: hand the decoder output through untouched.
+    if (!enabled && _boost == 1) return pcm;
     final out = Int16List(pcm.length);
     for (var i = 0; i < pcm.length; i++) {
-      final x = pcm[i].toDouble();
-      _level.process(x);
-      final g = _level.gain;
-      final late = _delay[_pos];
-      _delay[_pos] = x;
-      _pos = (_pos + 1) % lookAhead;
-      out[i] = (late * g).round().clamp(-32767, 32767);
+      var x = pcm[i].toDouble();
+      if (enabled) {
+        _level.process(x);
+        final g = _level.gain;
+        final late = _delay[_pos];
+        _delay[_pos] = x;
+        _pos = (_pos + 1) % lookAhead;
+        x = late * g;
+      }
+      out[i] = _lim.process(x * _boost).round().clamp(-32767, 32767);
     }
     return out;
   }
+}
+
+/// Look-ahead peak limiter. Louder input is attenuated instead of clipping
+/// (on transmit: instead of overdriving the ACELP encoder, harsh beeps on loud
+/// speech). The gain ramps down smoothly *before* a peak (the signal is
+/// delayed by [look] samples), so limiting adds no clicks, and recovers slowly
+/// (~100 ms) so sustained loud speech is not amplitude-modulated.
+class PeakLimiter {
+  PeakLimiter({this.limit = 12000.0});
+
+  static const look = 16; // 2 ms at 8 kHz
+  static const _release = 0.0012;
+
+  /// Highest absolute sample value that leaves the limiter.
+  double limit;
+
+  // growable: we shift these (removeAt/add) every sample; filled() is fixed-length by default.
+  final List<double> _g = List<double>.filled(2 * look + 1, 1.0, growable: true); // wanted gains, oldest first
+  final List<double> _x = List<double>.filled(look + 1, 0.0, growable: true); // delayed signal
+  double _r = 1.0;
+
+  void reset() {
+    _g.fillRange(0, _g.length, 1.0);
+    _x.fillRange(0, _x.length, 0.0);
+    _r = 1.0;
+  }
+
+  double process(double x) {
+    _g.removeAt(0);
+    final a = x.abs();
+    _g.add(a > limit ? limit / a : 1.0);
+    _x.removeAt(0);
+    _x.add(x);
+    // Sliding minimum over the look-ahead window, averaged over the same length:
+    // guarantees the smoothed gain is <= the wanted gain at every sample.
+    var sum = 0.0;
+    for (var p = 0; p <= look; p++) {
+      var m = 1.0;
+      for (var q = p; q <= p + look; q++) {
+        if (_g[q] < m) m = _g[q];
+      }
+      sum += m;
+    }
+    final smooth = sum / (look + 1);
+    final recovering = _r + (1.0 - _r) * _release;
+    _r = smooth < recovering ? smooth : recovering;
+    return _x[0] * _r;
+  }
+}
+
+/// Peak level of the audio that last went through, for the level meters.
+class LevelMeter {
+  LevelMeter({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  final DateTime Function() _clock;
+
+  /// Shown as "no signal".
+  static const floorDb = -60.0;
+
+  /// A reading older than this counts as silence (frames come every 60 ms).
+  static const stale = Duration(milliseconds: 200);
+
+  double _db = floorDb;
+  DateTime _at = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void add(Int16List pcm) {
+    if (pcm.isEmpty) return;
+    var peak = 0;
+    for (final v in pcm) {
+      final a = v.abs();
+      if (a > peak) peak = a;
+    }
+    _db = peak == 0 ? floorDb : (20 * math.log(peak / 32768) / math.ln10).clamp(floorDb, 0.0);
+    _at = _clock();
+  }
+
+  /// Peak of the newest block in dB below full scale, [floorDb] when silent.
+  double get db => _clock().difference(_at) > stale ? floorDb : _db;
 }
 
 /// A mono PCM16 WAV file.

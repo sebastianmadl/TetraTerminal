@@ -26,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late int _tab = widget.initialTab;
   final _calls = GlobalKey<CallsScreenState>();
+  final _contacts = GlobalKey<ContactsScreenState>();
 
   @override
   Widget build(BuildContext context) {
@@ -59,9 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // iOS: content runs beneath the floating glass tab bar.
       extendBody: isApple(context),
       body: IndexedStack(index: tab, children: [
-        const TalkgroupsScreen(),
+        TalkgroupsScreen(onManageGroups: () {
+          setState(() => _tab = 2);
+          _contacts.currentState?.showGroups();
+        }),
         CallsScreen(key: _calls),
-        ContactsScreen(onCall: (issi) {
+        ContactsScreen(key: _contacts, onCall: (issi) {
           setState(() => _tab = 1);
           _calls.currentState?.openKeypad(issi);
         }),
@@ -273,6 +277,16 @@ class _PttButtonState extends State<PttButton> {
     return Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
       const SizedBox(width: 64, child: SpeakerButton()),
       const Spacer(),
+      if (!m.showSoftPtt)
+        // Hardware PTT only (Android setting): a small status pill instead of the button.
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(color: tx ? Tokens.talk : scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(22)),
+          child: Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT KEY'),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: tx ? Colors.white : scheme.onSurfaceVariant)),
+        )
+      else
       Semantics(
         button: true,
         label: toggle

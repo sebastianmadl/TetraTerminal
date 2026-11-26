@@ -225,6 +225,63 @@ void main() {
     expect(d.txBufferMs, 240, reason: '240 ms by default');
   });
 
+  test('receive audio: boost, target and maximum level are saved; scan mode off hears only the selected group', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final d = await Settings.load();
+    expect((d.rxGainDb, d.rxTargetDb, d.rxMaxDb, d.scanMode), (0, -21, -3, true));
+    final s = Settings()
+      ..talkgroups = [Talkgroup(91, 'Ops'), Talkgroup(92, 'Spare'), Talkgroup(93, 'Quiet', scan: false)]
+      ..selectedGssi = 93
+      ..rxGainDb = 6
+      ..rxTargetDb = -18
+      ..rxMaxDb = -6;
+    expect(s.affiliatedGroups, [91, 92, 93]);
+    s.scanMode = false;
+    expect(s.affiliatedGroups, [93]);
+    await s.save();
+    final l = await Settings.load();
+    expect((l.rxGainDb, l.rxTargetDb, l.rxMaxDb, l.scanMode), (6, -18, -6, false));
+    expect(l.affiliatedGroups, [93]);
+  });
+
+  test('PoC radio buttons: off by default, on-screen PTT shown, all saved', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final d = await Settings.load();
+    expect((d.pocPttEnabled, d.pocPttKeyCode, d.pocPttDownAction, d.pocPttWake, d.knobNextKey, d.knobPrevKey, d.showPttButton),
+        (false, 0, '', false, 0, 0, true));
+    final s = Settings()
+      ..pocPttEnabled = true
+      ..pocPttKeyCode = 142
+      ..pocPttDownAction = 'com.example.ptt.down'
+      ..pocPttWake = true
+      ..knobNextKey = 22
+      ..knobPrevKey = 21
+      ..showPttButton = false;
+    await s.save();
+    final l = await Settings.load();
+    expect((l.pocPttEnabled, l.pocPttKeyCode, l.pocPttDownAction, l.pocPttWake, l.knobNextKey, l.knobPrevKey, l.showPttButton),
+        (true, 142, 'com.example.ptt.down', true, 22, 21, false));
+  });
+
+  test('the knob steps through the talkgroups and wraps around', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final s = Settings()
+      ..talkgroups = [Talkgroup(1, 'One'), Talkgroup(2, 'Two'), Talkgroup(3, '')]
+      ..selectedGssi = 1;
+    final m = TerminalModel(s);
+    await m.stepTalkgroup(1);
+    expect((m.selectedGssi, m.toast), (2, 'Two'));
+    await m.stepTalkgroup(1);
+    expect((m.selectedGssi, m.toast), (3, 'TG 3'));
+    await m.stepTalkgroup(1);
+    expect(m.selectedGssi, 1, reason: 'wraps to the first');
+    await m.stepTalkgroup(-1);
+    expect(m.selectedGssi, 3, reason: 'wraps to the last');
+  });
+
   test('DGNA adds and removes only its own groups, and survives a restart', () async {
     SharedPreferences.setMockInitialValues({});
     final secrets = MemorySecrets();
