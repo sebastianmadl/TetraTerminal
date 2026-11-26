@@ -384,6 +384,11 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Android: the ongoing notification runs a foreground service, which keeps
+  /// the app alive by itself. Silence would only hold the loudspeaker amplifier
+  /// open, which hisses on some radios while the screen is locked.
+  bool get _serviceKeepsAlive => defaultTargetPlatform == TargetPlatform.android && settings.liveActivity;
+
   /// iOS suspends the app in the background unless audio keeps it alive; the
   /// socket then dies quietly. In the background we keep the audio session
   /// playing (if enabled); back in front we reconnect if the link was lost.
@@ -400,7 +405,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         // Stay reachable in the background while connected (see AudioIO.keepAlive).
         // Starts already on inactive: by the time the app is paused iOS no
         // longer lets it start playback.
-        audio.keepAlive(_wantOnline && settings.backgroundAudio);
+        audio.keepAlive(_wantOnline && settings.backgroundAudio && !_serviceKeepsAlive);
       case AppLifecycleState.detached:
         live.end();
         if (_client != null) _client!.shutdown();
