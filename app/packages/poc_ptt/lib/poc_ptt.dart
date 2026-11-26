@@ -106,6 +106,16 @@ class PocPtt {
     }
   }
 
+  /// The last hardware key or key broadcast the plugin saw (diagnostics), or null.
+  static Future<String?> lastSeen() async {
+    if (!supported) return null;
+    try {
+      return await _m.invokeMethod<String>('lastSeen');
+    } on PlatformException {
+      return null;
+    }
+  }
+
   static Future<void> openKeyServiceSettings() async {
     if (!supported) return;
     await _m.invokeMethod('openKeyServiceSettings');

@@ -77,6 +77,7 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
             "stop" -> { stop(); result.success(null) }
             "learn" -> { PocPttHub.learning = call.argument<Boolean>("on") ?: false; result.success(null) }
             "keyServiceEnabled" -> result.success(keyServiceEnabled())
+            "lastSeen" -> result.success(PocPttHub.lastSeen)
             "led" -> result.success(setLed(call.argument<String>("state") ?: "off"))
             "openKeyServiceSettings" -> {
                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -103,6 +104,8 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
             d?.let { addAction(it) }
             u?.let { addAction(it) }
             KEY_BROADCASTS.forEach { addAction(it) }
+            KNOB_NEXT_BROADCASTS.forEach { addAction(it) }
+            KNOB_PREV_BROADCASTS.forEach { addAction(it) }
         }
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
@@ -110,11 +113,19 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
                 when (action) {
                     ACTION_DOWN, downAction -> PocPttHub.setPressed(true, "broadcast")
                     ACTION_UP, upAction -> PocPttHub.setPressed(false, "broadcast")
+                    in KNOB_NEXT_BROADCASTS -> PocPttHub.knobStep(1)
+                    in KNOB_PREV_BROADCASTS -> PocPttHub.knobStep(-1)
                     in KEY_BROADCASTS -> {
                         // Key code and KeyEvent action (0 = down, 1 = up) as int extras.
+                        // The channel knob reports its direction in "action" instead.
                         val code = i.getIntExtra("keycode", 0).takeIf { it != 0 } ?: i.getIntExtra("keyCode", 0)
                         val keyAction = i.getIntExtra("action", -1)
-                        if (code != 0 && (keyAction == KeyEvent.ACTION_DOWN || keyAction == KeyEvent.ACTION_UP)) {
+                        PocPttHub.lastSeen = "broadcast key $code action $keyAction"
+                        if (keyAction in PocPttHub.KNOB_NEXT_CODES) {
+                            PocPttHub.knobStep(1)
+                        } else if (keyAction in PocPttHub.KNOB_PREV_CODES) {
+                            PocPttHub.knobStep(-1)
+                        } else if (code != 0 && (keyAction == KeyEvent.ACTION_DOWN || keyAction == KeyEvent.ACTION_UP)) {
                             PocPttHub.handleBroadcastKey(code, keyAction == KeyEvent.ACTION_DOWN)
                         }
                     }
@@ -238,7 +249,11 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
         val KEY_BROADCASTS = setOf(
             "com.meigsmart.meigkeyaccessibility.onkeyevent",
             "key.intent.action.onkeyevent",
+            "dream.intent.action.KEY_SW",
         )
+        /** Radios that send one broadcast per knob click. */
+        val KNOB_NEXT_BROADCASTS = setOf("com.android.knob.add")
+        val KNOB_PREV_BROADCASTS = setOf("com.android.knob.sub")
         // LED modes of the vendor settings manager.
         private const val LED_POC_SEND = 19
         private const val LED_POC_RECEIVE = 20

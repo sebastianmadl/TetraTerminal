@@ -29,8 +29,10 @@ object PocPttHub {
     private var pressed = false
 
     /** Returns true if the key event was ours and must not reach other apps. */
-    fun handleKey(event: KeyEvent): Boolean =
-        handleKeyCode(event.keyCode, event.action == KeyEvent.ACTION_DOWN, event.repeatCount > 0, event.action == KeyEvent.ACTION_UP)
+    fun handleKey(event: KeyEvent): Boolean {
+        if (event.repeatCount == 0) lastSeen = "key ${event.keyCode} ${if (event.action == KeyEvent.ACTION_DOWN) "down" else "up"}"
+        return handleKeyCode(event.keyCode, event.action == KeyEvent.ACTION_DOWN, event.repeatCount > 0, event.action == KeyEvent.ACTION_UP)
+    }
 
     /**
      * One key transition, from a [KeyEvent] or from a radio's key broadcast
@@ -66,18 +68,27 @@ object PocPttHub {
                 setPressed(down, "key")
                 return
             }
-            if (knobNextKey == 0 && knobPrevKey == 0 && (code in FIRMWARE_KNOB_NEXT || code in FIRMWARE_KNOB_PREV)) {
-                if (down) send(mapOf("type" to "knob", "step" to if (code in FIRMWARE_KNOB_NEXT) 1 else -1))
+            if (knobNextKey == 0 && knobPrevKey == 0 && (code in KNOB_NEXT_CODES || code in KNOB_PREV_CODES)) {
+                if (down) knobStep(if (code in KNOB_NEXT_CODES) 1 else -1)
                 return
             }
         }
         handleKeyCode(code, down)
     }
 
-    // Key codes of Hytera PoC firmware: PTT, channel up / down (two generations).
+    /** One click of a channel knob: +1 next talkgroup, -1 previous. */
+    fun knobStep(step: Int) {
+        if (!enabled || learning) return
+        send(mapOf("type" to "knob", "step" to step))
+    }
+
+    /** The last hardware key or key broadcast seen, for the settings screen. */
+    @Volatile var lastSeen: String? = null
+
+    // Codes of Hytera PoC firmware: PTT key, channel up / down (two generations).
     private const val FIRMWARE_PTT_KEY = 142
-    private val FIRMWARE_KNOB_NEXT = setOf(166, 292)
-    private val FIRMWARE_KNOB_PREV = setOf(167, 293)
+    val KNOB_NEXT_CODES = setOf(166, 292)
+    val KNOB_PREV_CODES = setOf(167, 293)
 
     /** Press/release from any source; repeated presses are dropped. */
     fun setPressed(down: Boolean, source: String) {

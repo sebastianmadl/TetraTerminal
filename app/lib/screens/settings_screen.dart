@@ -278,6 +278,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
+                      FutureBuilder<String?>(
+                        future: PocPtt.lastSeen(),
+                        builder: (context, snap) => Tile(
+                          title: 'Last key seen',
+                          subtitle: snap.data ?? 'Nothing yet. Press a key or turn the knob, then tap here',
+                          onTap: () => setState(() {}),
+                        ),
+                      ),
                     ],
                     SwitchRow(
                       title: 'On-screen PTT button',
