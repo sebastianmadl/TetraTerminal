@@ -218,8 +218,8 @@ class Settings {
   /// Bring received speech to one level.
   bool rxLevel = true;
 
-  /// Transmit buffer in ms (180..1020): voice held before sending starts.
-  int txBufferMs = 180;
+  /// Transmit buffer in ms (180..1020, default 240): voice held before sending starts.
+  int txBufferMs = 240;
 
   /// Keep running in the background (hear calls with the screen locked).
   bool backgroundAudio = true;
@@ -289,7 +289,7 @@ class Settings {
       ..txCapture = j['txCapture'] ?? false
       ..noiseSuppression = j['noiseSuppression'] ?? false
       ..rxLevel = j['rxLevel'] ?? true
-      ..txBufferMs = ((j['txBufferMs'] ?? 180) as int).clamp(180, 1020)
+      ..txBufferMs = ((j['txBufferMs'] ?? 240) as int).clamp(180, 1020)
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true
       ..appearance = j['appearance'] ?? 'system'

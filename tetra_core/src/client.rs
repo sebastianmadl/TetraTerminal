@@ -23,7 +23,7 @@ const VOICE_PACE: Duration = Duration::from_millis(60);
 const MAX_TX_QUEUE: usize = 25;
 /// Frames held back before the first one goes out (and again after the queue
 /// ran dry), so the burst size of the phone's audio callback is covered. The
-/// smallest setting; the app can ask for more (up to about one second).
+/// smallest setting (the app defaults to 240 ms and allows up to about one second).
 pub const TX_PRIME_FRAMES: usize = 3;
 pub const TX_PRIME_FRAMES_MAX: usize = 17;
 
