@@ -176,4 +176,35 @@ mod tests {
         assert!(enc.push(&tone[..100]).is_empty());
         assert_eq!(enc.flush().len(), 1 + TAIL_SILENCE_BLOCKS);
     }
+
+    /// The encoder must produce the reference codec's exact bitstream on every
+    /// compiler. Its saturating basic operators (`L_add`, `L_sub`) used to rely on
+    /// signed overflow, which clang at -O2 (Xcode, Android NDK) treats as
+    /// impossible and optimises away: the phone then sent frames that a radio
+    /// decodes with full-scale ~2.7 kHz bursts. Expected digest = the vendored
+    /// codec built with gcc -O0, i.e. the code as written.
+    #[test]
+    fn encoder_is_bit_exact_with_the_reference_build() {
+        use md5::{Digest, Md5};
+        // Loud, integer-only test signal (sawtooth with changing pitch and level
+        // plus noise), so the result does not depend on floating point.
+        let mut s: u32 = 12345;
+        let pcm: Vec<i16> = (0..8000 * 3)
+            .map(|i: i32| {
+                let p = 50 + (i / 800) % 30;
+                let a = 8000 + 4000 * ((i / 400) % 3);
+                s = s.wrapping_mul(1103515245).wrapping_add(12345);
+                let noise = ((s >> 16) % 2001) as i32 - 1000;
+                ((i % p) * 2 * a / p - a + noise) as i16
+            })
+            .collect();
+        let mut enc = VoiceEncoder::new();
+        let mut hash = Md5::new();
+        for ste in enc.push(&pcm) {
+            let (a, b) = protocol::unpack_ste(&ste).unwrap();
+            hash.update(a);
+            hash.update(b);
+        }
+        assert_eq!(hex::encode(hash.finalize()), "26daded48fe3320f90a2608e3f6d97df");
+    }
 }

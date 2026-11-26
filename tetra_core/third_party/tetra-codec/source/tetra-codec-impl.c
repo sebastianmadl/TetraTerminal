@@ -8130,7 +8130,9 @@ Word32 L_add(tetra_codec* st, Word32 L_var1, Word32 L_var2)
   {
    Word32 L_var_out;
 
-   L_var_out = L_var1 + L_var2;
+   /* Wrapping add without signed overflow (undefined in C: clang -O2 then
+      drops the saturation below). Same result as the reference. */
+   L_var_out = (Word32)((uint32_t)L_var1 + (uint32_t)L_var2);
 
    if (((L_var1 ^ L_var2) & MIN_32) == 0)
      {
@@ -8770,7 +8772,8 @@ Word32 L_sub(tetra_codec* st, Word32 L_var1, Word32 L_var2)
   {
    Word32 L_var_out;
 
-   L_var_out = L_var1 - L_var2;
+   /* Wrapping subtract without signed overflow, see L_add. */
+   L_var_out = (Word32)((uint32_t)L_var1 - (uint32_t)L_var2);
 
    if (((L_var1 ^ L_var2) & MIN_32) != 0)
      {

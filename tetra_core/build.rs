@@ -12,6 +12,9 @@ fn main() {
         .include(src)
         .include("third_party/tetra-codec/include")
         .warnings(false)
+        // The reference code assumes two's-complement wrap-around; clang would
+        // otherwise optimise saturation checks away (see L_add / L_sub).
+        .flag_if_supported("-fwrapv")
         .opt_level(2)
         .compile("tetra-codec");
 }
