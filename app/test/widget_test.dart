@@ -19,7 +19,11 @@ class MemorySecrets implements SecretStore {
 
 void main() {
   // The Basestation mode is hidden in the app; its tests still cover the code.
-  setUp(() => Settings.basestationModeAvailable = true);
+  setUp(() {
+    Settings.basestationModeAvailable = true;
+    // The test window is small and the test platform Android: not a PoC radio here.
+    Settings.isPocDevice = () => false;
+  });
 
   test('Basestation mode is hidden: a profile saved with it logs in as a Terminal', () {
     Settings.basestationModeAvailable = false;
@@ -384,6 +388,24 @@ void main() {
       m.handleEvent(const AppEvent.groupTxEnded(gssi: 1, callId: 'c3', cause: 0));
       expect(m.activeGssi, 2);
     });
+  });
+
+  test('first start on a PoC radio: hardware PTT, no on-screen buttons, audio preset', () async {
+    Settings.secrets = MemorySecrets();
+    Settings.isPocDevice = () => true;
+    SharedPreferences.setMockInitialValues({});
+    final s = await Settings.load();
+    expect((s.pocPttEnabled, s.showPttButton, s.showSosButton, s.showSpeakerButton), (true, false, false, false));
+    expect((s.rxLevel, s.rxTargetDb, s.rxMaxDb, s.noiseSuppression, s.micAuto, s.micGainDb), (true, -13.0, -8.0, true, true, 0.0));
+    // Only the first start: what the user changed afterwards stays.
+    s.showSosButton = true;
+    await s.save();
+    expect((await Settings.load()).showSosButton, true);
+    // Any other device keeps the general defaults.
+    Settings.isPocDevice = () => false;
+    SharedPreferences.setMockInitialValues({});
+    final d = await Settings.load();
+    expect((d.pocPttEnabled, d.showPttButton, d.rxTargetDb, d.noiseSuppression), (false, true, -21.0, false));
   });
 
   test('the knob steps through the talkgroups and wraps around', () async {

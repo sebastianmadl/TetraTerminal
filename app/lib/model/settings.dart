@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -331,11 +334,40 @@ class Settings {
 
   static const _key = 'settings.v1';
 
+  /// An Android device with a small screen (PoC radios such as the Hytera
+  /// P60, 3.5 inch): lower than the compact layout's limit. Replaceable in tests.
+  static bool Function() isPocDevice = () {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    final v = PlatformDispatcher.instance.views.firstOrNull;
+    return v != null && v.physicalSize.height / v.devicePixelRatio < pocScreenHeight;
+  };
+
+  /// Logical screen height under which an Android device counts as a PoC radio
+  /// (the same limit as the compact layout).
+  static const pocScreenHeight = 700.0;
+
+  /// Defaults for a PoC radio: hardware PTT instead of the on-screen buttons,
+  /// and audio set for its loudspeaker and microphone.
+  void applyPocDefaults() {
+    pocPttEnabled = true;
+    showPttButton = false;
+    showSosButton = false;
+    showSpeakerButton = false;
+    rxLevel = true;
+    rxTargetDb = -13;
+    rxMaxDb = -8;
+    noiseSuppression = true;
+  }
+
   static Future<Settings> load() async {
     final prefs = await SharedPreferences.getInstance();
     final s = Settings();
     final raw = prefs.getString(_key);
-    if (raw == null) return s;
+    if (raw == null) {
+      // First start on a PoC radio: set up for its hardware keys and small screen.
+      if (isPocDevice()) s.applyPocDefaults();
+      return s;
+    }
     final j = jsonDecode(raw) as Map<String, dynamic>;
     s
       ..defaultPriority = j['defaultPriority'] ?? 1
