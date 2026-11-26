@@ -62,10 +62,14 @@ class CallsScreenState extends State<CallsScreen> {
         // Fit both the width and the height (shorter screens, taller nav bars):
         // about 260 pt go to the controls above, the number and the margins.
         final byWidth = (box.maxWidth - 2 * 40 - 2 * 24) / 3;
-        final byHeight = (box.maxHeight - 260) / 5 - 14;
-        final keySize = math.min(byWidth, byHeight).clamp(48.0, 80.0);
+        // A small screen (PoC radios): everything tighter, so the call button
+        // stays above the navigation bar.
+        final compact = box.maxHeight < 560;
+        final rowGap = compact ? 3.0 : 7.0;
+        final byHeight = (box.maxHeight - (compact ? 196 : 260)) / 5 - 2 * rowGap;
+        final keySize = math.min(byWidth, byHeight).clamp(compact ? 34.0 : 48.0, 80.0);
         final top = Padding(
-          padding: const EdgeInsets.fromLTRB(Tokens.gutter, 12, Tokens.gutter, 0),
+          padding: EdgeInsets.fromLTRB(Tokens.gutter, compact ? 6 : 12, Tokens.gutter, 0),
           child: Row(children: [
             Expanded(child: Segments<bool>(items: const {true: 'Recents', false: 'Keypad'}, value: _recents, onChanged: (v) => setState(() => _recents = v))),
             const SizedBox(width: 8),
@@ -75,7 +79,7 @@ class CallsScreenState extends State<CallsScreen> {
         if (_recents) return Column(children: [top, Expanded(child: RecentsList(onCall: openKeypad))]);
         return Column(children: [
           top,
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 6 : 10),
           SizedBox(
             width: 200,
             child: Segments<bool>(items: const {false: 'TETRA', true: 'Phone'}, value: _external, onChanged: (v) => setState(() {
@@ -86,15 +90,16 @@ class CallsScreenState extends State<CallsScreen> {
           const Spacer(),
           Text(
             _number.isEmpty ? (_external ? 'Phone number' : 'ISSI') : '${_external && prefix.isNotEmpty ? '$prefix ' : ''}$_number',
-            style: text.displaySmall?.copyWith(
+            style: (compact ? text.headlineMedium : text.displaySmall)?.copyWith(
               fontWeight: FontWeight.w400,
               letterSpacing: 1.5,
               color: _number.isEmpty ? scheme.outline : scheme.onSurface,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? 0 : 6),
           TextButton.icon(
+            style: compact ? TextButton.styleFrom(visualDensity: VisualDensity.compact, tapTargetSize: MaterialTapTargetSize.shrinkWrap, minimumSize: const Size(0, 32)) : null,
             onPressed: _options,
             icon: Icon(CupertinoIcons.slider_horizontal_3, size: 18, color: scheme.primary),
             label: Text(options),
@@ -102,13 +107,13 @@ class CallsScreenState extends State<CallsScreen> {
           const Spacer(),
           for (final row in const [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['*', '0', '#']])
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
+              padding: EdgeInsets.symmetric(vertical: rowGap),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 for (final k in row)
                   Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: _Key(k, size: keySize, enabled: _external || RegExp(r'[0-9]').hasMatch(k), onTap: () => _key(k))),
               ]),
             ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 3 : 10),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             SizedBox(width: keySize + 24),
             _RoundButton(
@@ -129,7 +134,7 @@ class CallsScreenState extends State<CallsScreen> {
                     ),
             ),
           ]),
-          const SizedBox(height: 20),
+          SizedBox(height: compact ? 6 : 20),
         ]);
       }),
     );

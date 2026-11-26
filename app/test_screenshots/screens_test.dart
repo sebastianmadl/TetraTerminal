@@ -288,6 +288,17 @@ void main() {
     });
   });
 
+  testWidgets('32 android keypad on a small PoC screen', (t) async {
+    await _shot(t, '32-android-keypad-small', _model(), const HomeScreen(initialTab: 1), p: TargetPlatform.android, size: const Size(320, 533), act: (t) async {
+      await t.tap(find.text('Keypad'));
+      await t.pump(const Duration(milliseconds: 300));
+      for (final k in '2320972'.split('')) {
+        await t.tap(find.text(k).last);
+        await t.pump();
+      }
+    });
+  });
+
   testWidgets('21 android settings footer dark', (t) async {
     final m = _model()..settings.appearance = 'dark';
     await _shot(t, '21-android-settings-footer-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, p: TargetPlatform.android, act: (t) async {
