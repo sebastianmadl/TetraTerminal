@@ -17,4 +17,19 @@ fn main() {
         .flag_if_supported("-fwrapv")
         .opt_level(2)
         .compile("tetra-codec");
+
+    // speexdsp noise suppression (transmit path), see third_party/speexdsp/README.md.
+    let spx = "third_party/speexdsp";
+    println!("cargo:rerun-if-changed={spx}");
+    let mut b = cc::Build::new();
+    for f in ["preprocess.c", "filterbank.c", "fftwrap.c", "smallft.c", "mdf.c"] {
+        b.file(format!("{spx}/libspeexdsp/{f}"));
+    }
+    b.include(spx)
+        .include(format!("{spx}/include"))
+        .include(format!("{spx}/libspeexdsp"))
+        .define("HAVE_CONFIG_H", None)
+        .warnings(false)
+        .opt_level(2)
+        .compile("speexdsp");
 }

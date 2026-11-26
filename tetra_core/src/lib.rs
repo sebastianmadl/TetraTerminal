@@ -7,6 +7,7 @@ pub mod calls;
 pub mod client;
 pub mod codec;
 pub mod control;
+pub mod denoise;
 pub mod protocol;
 pub mod sds;
 pub mod transport;

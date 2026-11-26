@@ -197,6 +197,25 @@ fn convert(e: ClientEvent) -> AppEvent {
     }
 }
 
+/// speexdsp noise suppression for the transmit path (8 kHz mono). Same number
+/// of samples out as in, 20 ms late. One per transmission.
+pub struct TxDenoiser {
+    inner: crate::denoise::Denoiser,
+}
+
+#[allow(clippy::new_without_default)]
+impl TxDenoiser {
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new() -> TxDenoiser {
+        TxDenoiser { inner: crate::denoise::Denoiser::new(crate::denoise::DEFAULT_SUPPRESS_DB) }
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn process(&mut self, pcm: Vec<i16>) -> Vec<i16> {
+        self.inner.process(&pcm)
+    }
+}
+
 /// Opaque handle held by Dart.
 pub struct TetraClient {
     handle: ClientHandle,
