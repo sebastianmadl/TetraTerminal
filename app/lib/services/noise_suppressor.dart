@@ -15,7 +15,7 @@ import 'dart:typed_data';
 ///
 /// Adds [latency] samples (32 ms) of delay.
 class NoiseSuppressor {
-  NoiseSuppressor({this.maxReductionDb = 15}) {
+  NoiseSuppressor({this.maxReductionDb = 10}) {
     _prevG.fillRange(0, _bins, 1);
   }
 

@@ -128,6 +128,22 @@ void main() {
     expect(off.process(pcm), same(pcm));
   });
 
+  test('a loud syllable after a quiet stretch does not blast out at the quiet gain', () {
+    // 2 s of a quiet talker (the gain climbs), then a loud one at once.
+    final quiet = speech(300, seconds: 2.04), loud = speech(6000, seconds: 0.96);
+    final pcm = Int16List.fromList([...quiet, ...loud].map((v) => v.round()).toList());
+    final r = RxLeveller();
+    final out = <int>[];
+    for (var i = 0; i < pcm.length; i += 480) {
+      out.addAll(r.process(Int16List.sublistView(pcm, i, i + 480)));
+    }
+    // The loud part, shifted by the look-ahead: no peak beyond what its settled level gives.
+    final start = quiet.length + RxLeveller.lookAhead;
+    final onset = out.sublist(start, start + 400).map((v) => v.abs()).reduce(math.max);
+    final settled = out.sublist(out.length - 2400).map((v) => v.abs()).reduce(math.max);
+    expect(onset, lessThan(settled * 1.5), reason: 'onset peak $onset, settled peak $settled');
+  });
+
   test('WAV header and samples', () {
     final w = wavBytes(Int16List.fromList([1, -2, 300]), 8000);
     expect(w.length, 44 + 6);

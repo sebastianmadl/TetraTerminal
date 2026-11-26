@@ -213,7 +213,7 @@ class Settings {
   bool txCapture = false;
 
   /// Suppress background noise in own transmissions.
-  bool noiseSuppression = true;
+  bool noiseSuppression = false;
 
   /// Bring received speech to one level.
   bool rxLevel = true;
@@ -284,7 +284,7 @@ class Settings {
       ..allowPreemption = j['allowPreemption'] ?? true
       ..micGainDb = (j['micGainDb'] as num?)?.toDouble() ?? 0
       ..txCapture = j['txCapture'] ?? false
-      ..noiseSuppression = j['noiseSuppression'] ?? true
+      ..noiseSuppression = j['noiseSuppression'] ?? false
       ..rxLevel = j['rxLevel'] ?? true
       ..backgroundAudio = j['backgroundAudio'] ?? true
       ..speakerOut = j['speakerOut'] ?? true

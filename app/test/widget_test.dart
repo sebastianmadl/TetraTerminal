@@ -210,17 +210,17 @@ void main() {
     expect((l.pttAutoStopSeconds, l.pttToggle), (120, true));
   });
 
-  test('noise suppression and received level are on by default and saved', () async {
+  test('noise suppression is off and received level on by default, both saved', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = MemorySecrets();
     final d = await Settings.load();
-    expect((d.noiseSuppression, d.rxLevel), (true, true));
+    expect((d.noiseSuppression, d.rxLevel), (false, true));
     final s = Settings()
-      ..noiseSuppression = false
+      ..noiseSuppression = true
       ..rxLevel = false;
     await s.save();
     final l = await Settings.load();
-    expect((l.noiseSuppression, l.rxLevel), (false, false));
+    expect((l.noiseSuppression, l.rxLevel), (true, false));
   });
 
   test('DGNA adds and removes only its own groups, and survives a restart', () async {

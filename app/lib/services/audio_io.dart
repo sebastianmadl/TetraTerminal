@@ -426,8 +426,8 @@ class _Decimator2 {
 
   /// Background noise suppression, switched in the settings.
   final _ns = NoiseSuppressor();
-  bool suppress = true;
-  bool _suppressing = true; // fixed for one transmission
+  bool suppress = false;
+  bool _suppressing = false; // fixed for one transmission
 
   /// Automatic level instead of the fixed built-in gain (the trim still applies).
   final TxLevel? level;

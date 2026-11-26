@@ -151,13 +151,27 @@ class RxLeveller {
   /// Speech level after the control (about -21 dBov).
   static const targetRms = 3000.0;
 
+  /// Look-ahead (30 ms): the gain for a sample is the one the control has
+  /// reached after hearing the 30 ms that follow it. Without it the first
+  /// milliseconds of a loud syllable after a quiet stretch went out at the
+  /// quiet stretch's gain, as loud clicks and beeps up to clipping.
+  static const lookAhead = 240;
+
   final _level = TxLevel(targetRms: targetRms, maxGainDb: 15, gateRms: 60);
+  final _delay = Float64List(lookAhead);
+  int _pos = 0;
 
   Int16List process(Int16List pcm) {
     if (!enabled) return pcm;
     final out = Int16List(pcm.length);
     for (var i = 0; i < pcm.length; i++) {
-      out[i] = _level.process(pcm[i].toDouble()).round().clamp(-32767, 32767);
+      final x = pcm[i].toDouble();
+      _level.process(x);
+      final g = _level.gain;
+      final late = _delay[_pos];
+      _delay[_pos] = x;
+      _pos = (_pos + 1) % lookAhead;
+      out[i] = (late * g).round().clamp(-32767, 32767);
     }
     return out;
   }
