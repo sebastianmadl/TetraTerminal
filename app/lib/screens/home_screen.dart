@@ -81,6 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
               items: [for (final (i, it) in items.indexed) (it.$1, filled[i], it.$2)],
             )
           : NavigationBar(
+              // Lower than the Material default (80), lower still on small screens.
+              height: MediaQuery.sizeOf(context).height < TabPage.compactHeight ? 54 : 64,
               selectedIndex: tab,
               onDestinationSelected: select,
               destinations: [
