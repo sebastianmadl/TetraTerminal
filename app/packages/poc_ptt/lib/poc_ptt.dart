@@ -106,6 +106,16 @@ class PocPtt {
     }
   }
 
+  /// Speaks [text] with the device's text-to-speech engine, in the device language.
+  static Future<void> speak(String text) async {
+    if (!supported) return;
+    try {
+      await _m.invokeMethod('speak', {'text': text});
+    } on PlatformException {
+      // No speech engine on this device.
+    }
+  }
+
   /// The last hardware key or key broadcast the plugin saw (diagnostics), or null.
   static Future<String?> lastSeen() async {
     if (!supported) return null;

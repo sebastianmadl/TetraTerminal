@@ -288,6 +288,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ],
                     SwitchRow(
+                      title: 'Announce talkgroup',
+                      subtitle: 'Speaks the group name when you turn the knob, in the device language',
+                      value: s.announceGroup,
+                      onChanged: (v) => setState(() => s.announceGroup = v),
+                    ),
+                    SwitchRow(
                       title: 'On-screen PTT button',
                       subtitle: 'Off on radios with a hardware PTT key',
                       value: s.showPttButton,

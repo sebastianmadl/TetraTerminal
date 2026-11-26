@@ -273,6 +273,9 @@ class Settings {
   /// Android: the on-screen PTT button (off on radios with a hardware PTT).
   bool showPttButton = true;
 
+  /// Speak the talkgroup name when the knob changes it (device language).
+  bool announceGroup = true;
+
   bool get isConfigured => active.isConfigured;
 
   List<int> get affiliatedGroups => talkgroups.where((t) => (scanMode && t.scan) || t.gssi == selectedGssi).map((t) => t.gssi).toList();
@@ -338,7 +341,8 @@ class Settings {
       ..pocPttWake = j['pocPttWake'] ?? false
       ..knobNextKey = j['knobNextKey'] ?? 0
       ..knobPrevKey = j['knobPrevKey'] ?? 0
-      ..showPttButton = j['showPttButton'] ?? true;
+      ..showPttButton = j['showPttButton'] ?? true
+      ..announceGroup = j['announceGroup'] ?? true;
     final list = j['profiles'] as List?;
     // Up to 1.3 there was one login stored flat; it becomes the first profile.
     s.profiles = list == null || list.isEmpty
@@ -408,6 +412,7 @@ class Settings {
         'knobNextKey': knobNextKey,
         'knobPrevKey': knobPrevKey,
         'showPttButton': showPttButton,
+        'announceGroup': announceGroup,
       }),
     );
   }

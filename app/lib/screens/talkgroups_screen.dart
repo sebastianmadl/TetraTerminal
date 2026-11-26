@@ -374,16 +374,37 @@ class TalkgroupList extends StatelessWidget {
         ]),
       );
     }
-    return Section(
-      footer: 'Tap a group to edit or remove it. The switch scans a group, so you hear it too while scan mode is on.',
-      children: [for (final t in tgs) _TalkgroupRow(t)],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _Card(
+        child: ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          itemCount: tgs.length,
+          onReorder: (from, to) {
+            Haptics.select();
+            m.moveTalkgroup(from, to > from ? to - 1 : to);
+          },
+          itemBuilder: (context, i) => Material(
+            key: ValueKey(tgs[i].gssi),
+            color: scheme.surfaceContainerLow,
+            child: _TalkgroupRow(tgs[i], index: i),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(Tokens.gutter + 4, 8, Tokens.gutter + 4, 0),
+        child: Text('Tap a group to edit or remove it. Drag the handle to change the order, which the channel knob follows. The switch scans a group, so you hear it too while scan mode is on.',
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+      ),
+    ]);
   }
 }
 
 class _TalkgroupRow extends StatelessWidget {
-  const _TalkgroupRow(this.t);
+  const _TalkgroupRow(this.t, {required this.index});
   final Talkgroup t;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
@@ -404,17 +425,29 @@ class _TalkgroupRow extends StatelessWidget {
       child: Tile(
         title: t.name,
         subtitle: subtitle,
-        trailing: Semantics(
-          label: 'Scan ${t.name}',
-          child: Switch.adaptive(
-            value: t.scan,
-            onChanged: (v) {
-              Haptics.select();
-              t.scan = v;
-              m.saveTalkgroups();
-            },
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          Semantics(
+            label: 'Scan ${t.name}',
+            child: Switch.adaptive(
+              value: t.scan,
+              onChanged: (v) {
+                Haptics.select();
+                t.scan = v;
+                m.saveTalkgroups();
+              },
+            ),
           ),
-        ),
+          ReorderableDragStartListener(
+            index: index,
+            child: Semantics(
+              label: 'Move ${t.name}',
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 2, 10),
+                child: Icon(CupertinoIcons.line_horizontal_3, size: 22, color: Theme.of(context).colorScheme.outline),
+              ),
+            ),
+          ),
+        ]),
         onTap: () => editTalkgroup(context, m, t),
       ),
     );

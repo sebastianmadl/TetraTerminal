@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Talkgroup announcement: lets the app see the device's text-to-speech engine. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+    </queries>
     <application>
         <!-- Lets the PTT key work while the app is in the background or the
              screen is locked. The user switches it on in Accessibility settings;

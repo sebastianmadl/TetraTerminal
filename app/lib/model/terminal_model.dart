@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -285,7 +285,22 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     final i = tgs.indexWhere((t) => t.gssi == settings.selectedGssi);
     final next = tgs[((i < 0 ? 0 : i + step) % tgs.length + tgs.length) % tgs.length];
     toast = next.name.isEmpty ? 'TG ${next.gssi}' : next.name;
+    // A bare number is read digit by digit, as on the air.
+    if (settings.announceGroup) unawaited(speak(next.name.isEmpty ? '${next.gssi}'.split('').join(' ') : next.name));
     await selectGroup(next.gssi);
+  }
+
+  /// Speaks the talkgroup name (replaced in tests).
+  @visibleForTesting
+  Future<void> Function(String text) speak = PocPtt.speak;
+
+  /// Moves a talkgroup to another place in the list (the knob follows this order).
+  Future<void> moveTalkgroup(int from, int to) async {
+    final tgs = settings.talkgroups;
+    if (from < 0 || from >= tgs.length) return;
+    final t = tgs.removeAt(from);
+    tgs.insert(to.clamp(0, tgs.length), t);
+    await saveTalkgroups();
   }
 
   /// Waits for the next hardware key press and returns its key code (null on

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.provider.Settings
+import android.speech.tts.TextToSpeech
 import android.view.KeyEvent
 import android.view.Window
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -16,6 +17,7 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.Locale
 
 /**
  * Hardware PTT on Android PoC radios. Three inputs, all optional:
@@ -49,6 +51,9 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
         stop()
         PocPttHub.onPress = null
         PocPttHub.emit = null
+        tts?.shutdown()
+        tts = null
+        ttsReady = false
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
     }
@@ -78,6 +83,7 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
             "learn" -> { PocPttHub.learning = call.argument<Boolean>("on") ?: false; result.success(null) }
             "keyServiceEnabled" -> result.success(keyServiceEnabled())
             "lastSeen" -> result.success(PocPttHub.lastSeen)
+            "speak" -> { speak(call.argument<String>("text") ?: ""); result.success(null) }
             "led" -> result.success(setLed(call.argument<String>("state") ?: "off"))
             "openKeyServiceSettings" -> {
                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -153,6 +159,36 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
         receiver = null
         downAction = null
         upAction = null
+    }
+
+    // ── Spoken talkgroup name ────────────────────────────────────────────────
+
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var ttsPending: String? = null
+
+    /** Speaks [text] with the device's text-to-speech engine, in the device language. A newer text replaces the one being spoken. */
+    private fun speak(text: String) {
+        if (text.isEmpty()) return
+        if (tts == null) {
+            ttsPending = text
+            tts = TextToSpeech(context) { status ->
+                ttsReady = status == TextToSpeech.SUCCESS
+                if (ttsReady) {
+                    runCatching { tts?.setLanguage(Locale.getDefault()) }
+                    ttsPending?.let { say(it) }
+                }
+                ttsPending = null
+            }
+        } else if (ttsReady) {
+            say(text)
+        } else {
+            ttsPending = text
+        }
+    }
+
+    private fun say(text: String) {
+        runCatching { tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "talkgroup") }
     }
 
     // ── Status LED (Hytera PoC radios) ───────────────────────────────────────

@@ -271,7 +271,8 @@ void main() {
     final s = Settings()
       ..talkgroups = [Talkgroup(1, 'One'), Talkgroup(2, 'Two'), Talkgroup(3, '')]
       ..selectedGssi = 1;
-    final m = TerminalModel(s);
+    final said = <String>[];
+    final m = TerminalModel(s)..speak = (t) async => said.add(t);
     await m.stepTalkgroup(1);
     expect((m.selectedGssi, m.toast), (2, 'Two'));
     await m.stepTalkgroup(1);
@@ -280,6 +281,25 @@ void main() {
     expect(m.selectedGssi, 1, reason: 'wraps to the first');
     await m.stepTalkgroup(-1);
     expect(m.selectedGssi, 3, reason: 'wraps to the last');
+    expect(said, ['Two', '3', 'One', '3'], reason: 'each step is announced');
+    s.announceGroup = false;
+    await m.stepTalkgroup(1);
+    expect(said.length, 4, reason: 'announcement switched off');
+  });
+
+  test('talkgroups can be moved; the knob follows the new order', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final s = Settings()
+      ..talkgroups = [Talkgroup(1, 'One'), Talkgroup(2, 'Two'), Talkgroup(3, 'Three')]
+      ..selectedGssi = 1;
+    final m = TerminalModel(s)..speak = (_) async {};
+    await m.moveTalkgroup(2, 0);
+    expect(s.talkgroups.map((t) => t.gssi), [3, 1, 2]);
+    expect(m.selectedGssi, 1, reason: 'the selection stays');
+    await m.stepTalkgroup(-1);
+    expect(m.selectedGssi, 3);
+    expect((await Settings.load()).talkgroups.map((t) => t.gssi), [3, 1, 2], reason: 'saved');
   });
 
   test('DGNA adds and removes only its own groups, and survives a restart', () async {
