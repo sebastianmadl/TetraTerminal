@@ -265,12 +265,15 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       await PocPtt.stop();
       return;
     }
+    // A known radio needs no key codes: the plugin recognises its firmware's
+    // key broadcasts by itself. Only a custom profile passes its own.
+    final custom = settings.pocCustom;
     await PocPtt.configure(
-      keyCode: settings.pocPttKeyCode,
-      downAction: settings.pocPttDownAction,
+      keyCode: custom ? settings.pocPttKeyCode : 0,
+      downAction: custom ? settings.pocPttDownAction : '',
       wake: settings.pocPttWake,
-      knobNextKey: settings.knobNextKey,
-      knobPrevKey: settings.knobPrevKey,
+      knobNextKey: custom ? settings.knobNextKey : 0,
+      knobPrevKey: custom ? settings.knobPrevKey : 0,
     );
   }
 

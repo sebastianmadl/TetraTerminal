@@ -261,6 +261,22 @@ class Settings {
 
   // Hardware PTT of Android PoC radios (key code and/or radio broadcast)
   bool pocPttEnabled = false;
+  /// Device profile ([PocProfile.id]); 'custom' uses the fields below.
+  String pocProfile = PocProfile.hyteraP60.id;
+  bool get pocCustom => pocProfile == PocProfile.customId;
+
+  /// Switches the device profile. The custom fields start with the values of
+  /// the profile left behind, so only the differences need changing.
+  void setPocProfile(String id) {
+    if (id == PocProfile.customId && pocPttKeyCode == 0 && pocPttDownAction.isEmpty && knobNextKey == 0 && knobPrevKey == 0) {
+      final from = PocProfile.byId(pocProfile) ?? PocProfile.hyteraP60;
+      pocPttKeyCode = from.pttKey;
+      pocPttDownAction = from.pttDownAction;
+      knobNextKey = from.knobNextKey;
+      knobPrevKey = from.knobPrevKey;
+    }
+    pocProfile = id;
+  }
   /// Android key code; 0 = none.
   int pocPttKeyCode = 0;
   /// Broadcast the radio sends on PTT press; release is derived ("down" -> "up").
@@ -336,6 +352,11 @@ class Settings {
       ..headsetEnabled = j['headsetEnabled'] ?? false
       ..headsetAddress = j['headsetAddress'] ?? ''
       ..pocPttEnabled = j['pocPttEnabled'] ?? false
+      // Settings from before the profiles: taught keys stay as a custom profile.
+      ..pocProfile = j['pocProfile'] ??
+          ((j['pocPttKeyCode'] ?? 0) != 0 || (j['pocPttDownAction'] ?? '') != '' || (j['knobNextKey'] ?? 0) != 0 || (j['knobPrevKey'] ?? 0) != 0
+              ? PocProfile.customId
+              : PocProfile.hyteraP60.id)
       ..pocPttKeyCode = j['pocPttKeyCode'] ?? 0
       ..pocPttDownAction = j['pocPttDownAction'] ?? ''
       ..pocPttWake = j['pocPttWake'] ?? false
@@ -406,6 +427,7 @@ class Settings {
         'headsetEnabled': headsetEnabled,
         'headsetAddress': headsetAddress,
         'pocPttEnabled': pocPttEnabled,
+        'pocProfile': pocProfile,
         'pocPttKeyCode': pocPttKeyCode,
         'pocPttDownAction': pocPttDownAction,
         'pocPttWake': pocPttWake,
@@ -416,4 +438,31 @@ class Settings {
       }),
     );
   }
+}
+
+/// A PoC radio whose keys are known, for the hardware PTT settings.
+class PocProfile {
+  const PocProfile(this.id, this.name, {required this.pttKey, this.pttDownAction = '', required this.knobNextKey, required this.knobPrevKey});
+  final String id;
+  final String name;
+  /// Android key code of the PTT key.
+  final int pttKey;
+  /// Broadcast on PTT press, where the radio sends one of its own.
+  final String pttDownAction;
+  /// Key codes of the channel knob, one per direction.
+  final int knobNextKey;
+  final int knobPrevKey;
+
+  static const customId = 'custom';
+  static const hyteraP60 = PocProfile('hytera-p60', 'Hytera P60', pttKey: 142, knobNextKey: 292, knobPrevKey: 293);
+  static const all = [hyteraP60];
+
+  static PocProfile? byId(String id) {
+    for (final p in all) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  static String nameOf(String id) => byId(id)?.name ?? 'Custom';
 }

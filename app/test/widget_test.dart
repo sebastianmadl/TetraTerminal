@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -263,6 +264,34 @@ void main() {
     final l = await Settings.load();
     expect((l.pocPttEnabled, l.pocPttKeyCode, l.pocPttDownAction, l.pocPttWake, l.knobNextKey, l.knobPrevKey, l.showPttButton),
         (true, 142, 'com.example.ptt.down', true, 22, 21, false));
+  });
+
+  test('PoC device profile: Hytera P60 by default, custom starts with its keys', () async {
+    SharedPreferences.setMockInitialValues({});
+    Settings.secrets = MemorySecrets();
+    final s = await Settings.load();
+    expect((s.pocProfile, s.pocCustom), ('hytera-p60', false));
+    s.setPocProfile(PocProfile.customId);
+    expect((s.pocCustom, s.pocPttKeyCode, s.pocPttDownAction, s.knobNextKey, s.knobPrevKey), (true, 142, '', 292, 293));
+    // Keys the user changed survive going to the device profile and back.
+    s.knobNextKey = 22;
+    s.setPocProfile(PocProfile.hyteraP60.id);
+    s.setPocProfile(PocProfile.customId);
+    expect((s.pocPttKeyCode, s.knobNextKey), (142, 22));
+    await s.save();
+    expect((await Settings.load()).pocProfile, PocProfile.customId);
+  });
+
+  test('PoC device profile: keys taught before the profiles stay custom', () async {
+    Settings.secrets = MemorySecrets();
+    Future<Settings> old(Map<String, dynamic> j) async {
+      SharedPreferences.setMockInitialValues({'settings.v1': jsonEncode(j)});
+      return Settings.load();
+    }
+
+    expect((await old({'pocPttKeyCode': 131})).pocCustom, true);
+    expect((await old({'pocPttDownAction': 'com.example.ptt.down'})).pocCustom, true);
+    expect((await old({'pocPttEnabled': true})).pocProfile, 'hytera-p60');
   });
 
   test('the knob steps through the talkgroups and wraps around', () async {

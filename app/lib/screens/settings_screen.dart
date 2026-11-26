@@ -225,10 +225,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (Platform.isAndroid)
                 Section(
                   header: 'Radio buttons (PoC devices)',
-                  footer: 'For Android radios with a hardware PTT key or a channel knob. Tap a key row and press the key '
-                      'to teach it. Some radios send a broadcast for PTT instead; enter its "down" action, the "up" action '
-                      'is derived. Automation apps can send ${PocPtt.ownDownAction} / ${PocPtt.ownUpAction}. '
-                      'On Hytera radios the PTT key and the knob work without teaching, and the status LED shows transmit and receive.',
+                  footer: 'For Android radios with a hardware PTT key or a channel knob. Pick your device, or Custom to set the keys '
+                      'yourself: tap a key row and press the key to teach it. Some radios send a broadcast for PTT instead; '
+                      'enter its "down" action, the "up" action is derived. Automation apps can send '
+                      '${PocPtt.ownDownAction} / ${PocPtt.ownUpAction}. On Hytera radios the status LED shows transmit and receive.',
                   children: [
                     SwitchRow(
                       title: 'Use hardware PTT and knob',
@@ -236,6 +236,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (v) => setState(() => s.pocPttEnabled = v),
                     ),
                     if (s.pocPttEnabled) ...[
+                      Tile(
+                        title: 'Device',
+                        subtitle: s.pocCustom ? 'Set the keys below' : 'PTT key, knob and LED are set',
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(PocProfile.nameOf(s.pocProfile), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ]),
+                        onTap: () async {
+                          final id = await showActions<String>(context, title: 'Device', actions: [
+                            for (final p in PocProfile.all) SheetAction(p.name, p.id),
+                            const SheetAction('Custom', PocProfile.customId),
+                          ]);
+                          if (id != null && mounted) setState(() => s.setPocProfile(id));
+                        },
+                      ),
+                      if (s.pocCustom) ...[
                       Tile(
                         title: 'PTT key',
                         subtitle: _keyLabel(s.pocPttKeyCode),
@@ -260,6 +276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: _keyLabel(s.knobPrevKey),
                         onTap: () => _teachKey(m, 'Knob: previous talkgroup', (c) => s.knobPrevKey = c),
                       ),
+                      ],
                       SwitchRow(
                         title: 'Wake screen and open the app on PTT',
                         value: s.pocPttWake,
@@ -351,7 +368,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
-  static String _keyLabel(int code) => code == 0 ? 'Automatic. Tap, then press a key to set one' : 'Key code $code';
+  static String _keyLabel(int code) => code == 0 ? 'None. Tap, then press a key to set one' : 'Key code $code';
 
   /// Waits for one hardware key press and stores its code via [set].
   Future<void> _teachKey(TerminalModel m, String title, void Function(int code) set) async {
