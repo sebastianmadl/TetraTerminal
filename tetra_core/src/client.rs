@@ -21,6 +21,58 @@ const TICK: Duration = Duration::from_millis(250);
 const VOICE_PACE: Duration = Duration::from_millis(60);
 /// Cap on queued, not-yet-sent voice frames (~1.5 s) so latency stays bounded.
 const MAX_TX_QUEUE: usize = 25;
+/// Frames held back before the first one goes out (and again after the queue
+/// ran dry), so the burst size of the phone's audio callback is covered.
+const TX_PRIME_FRAMES: usize = 3;
+
+/// Voice frames waiting for their 60 ms slot.
+///
+/// The microphone delivers audio in bursts (an iOS input tap hands over about
+/// 100 ms at a time), the base station takes one frame every 60 ms. Sending
+/// each frame as soon as it exists leaves no reserve: the queue keeps running
+/// dry for one slot, a frame arrives late at the base station, and the radio
+/// plays the gap as a short beep. So the first frames are held until
+/// [`TX_PRIME_FRAMES`] are queued (180 ms), and the same after an underrun.
+#[derive(Default)]
+struct VoicePacer {
+    queue: VecDeque<Vec<u8>>,
+    primed: bool,
+}
+
+impl VoicePacer {
+    fn push(&mut self, frames: impl IntoIterator<Item = Vec<u8>>) {
+        self.queue.extend(frames);
+        while self.queue.len() > MAX_TX_QUEUE {
+            self.queue.pop_front();
+        }
+    }
+
+    /// The frame for this 60 ms slot, if one may go out.
+    fn next(&mut self) -> Option<Vec<u8>> {
+        if !self.primed {
+            if self.queue.len() < TX_PRIME_FRAMES {
+                return None;
+            }
+            self.primed = true;
+        }
+        let f = self.queue.pop_front();
+        if f.is_none() {
+            self.primed = false;
+        }
+        f
+    }
+
+    /// Everything still queued (end of the transmission).
+    fn drain(&mut self) -> Vec<Vec<u8>> {
+        self.primed = false;
+        self.queue.drain(..).collect()
+    }
+
+    fn clear(&mut self) {
+        self.primed = false;
+        self.queue.clear();
+    }
+}
 const SDS_HEADER_TTL: Duration = Duration::from_secs(10);
 
 /// A network by its MNI (MCC 10 bits, MNC 14 bits).
@@ -126,7 +178,7 @@ struct Session {
     events: mpsc::UnboundedSender<ClientEvent>,
     out: Vec<Vec<u8>>,
     encoder: Option<(Uuid, VoiceEncoder)>,
-    tx_queue: VecDeque<Vec<u8>>,
+    tx_queue: VoicePacer,
     decoders: HashMap<Uuid, VoiceDecoder>,
     sds_headers: HashMap<Uuid, (u32, u32, Instant)>,
     next_mr: u8,
@@ -154,7 +206,7 @@ impl Session {
             events,
             out: Vec::new(),
             encoder: None,
-            tx_queue: VecDeque::new(),
+            tx_queue: VoicePacer::default(),
             decoders: HashMap::new(),
             sds_headers: HashMap::new(),
             next_mr: rand::random(),
@@ -336,10 +388,7 @@ impl Session {
                     self.encoder = Some((id, VoiceEncoder::new()));
                 }
                 let frames = self.encoder.as_mut().unwrap().1.push_frames(&id, &pcm);
-                self.tx_queue.extend(frames);
-                while self.tx_queue.len() > MAX_TX_QUEUE {
-                    self.tx_queue.pop_front();
-                }
+                self.tx_queue.push(frames);
             }
             Command::Shutdown => return false,
         }
@@ -430,16 +479,17 @@ impl Session {
         if let Some((eid, enc)) = self.encoder.as_mut() {
             if *eid == id {
                 for p in enc.flush() {
-                    self.tx_queue.push_back(p::build_frame(p::FRAME_TRAFFIC_CHANNEL, &id, (p.len() * 8) as u16, &p));
+                    self.tx_queue.push([p::build_frame(p::FRAME_TRAFFIC_CHANNEL, &id, (p.len() * 8) as u16, &p)]);
                 }
             }
         }
-        self.out.extend(self.tx_queue.drain(..));
+        let rest = self.tx_queue.drain();
+        self.out.extend(rest);
     }
 
     /// Releases one queued voice frame; called every [`VOICE_PACE`].
     fn pace_voice(&mut self) {
-        if let Some(f) = self.tx_queue.pop_front() {
+        if let Some(f) = self.tx_queue.next() {
             self.out.push(f);
         }
     }
@@ -563,6 +613,39 @@ mod tests {
 
     fn kinds(v: &[Vec<u8>]) -> Vec<(u8, u8)> {
         v.iter().map(|w| (w[0], w[1])).collect()
+    }
+
+    /// Frames as an iOS input tap produces them: 100 ms of audio at a time,
+    /// 60 ms per frame. Returns the slots (60 ms each) in which a frame went out.
+    fn paced_slots(prime: bool) -> Vec<usize> {
+        let mut pacer = VoicePacer::default();
+        let (mut samples, mut made, mut sent) = (0usize, 0usize, Vec::new());
+        for ms in 0..3000usize {
+            if ms % 100 == 0 && ms > 0 && ms <= 2400 {
+                samples += 800;
+                let n = samples / 480 - made;
+                made += n;
+                pacer.push((0..n).map(|_| vec![0u8]));
+                if !prime {
+                    pacer.primed = true;
+                }
+            }
+            if ms % 60 == 0 && pacer.next().is_some() {
+                sent.push(ms / 60);
+            }
+        }
+        sent
+    }
+
+    #[test]
+    fn voice_frames_go_out_in_every_slot_despite_bursty_audio() {
+        let sent = paced_slots(true);
+        assert_eq!(sent.len(), 40, "2.4 s of audio = 40 frames");
+        assert!(sent.windows(2).all(|w| w[1] == w[0] + 1), "a gap in {sent:?}");
+        assert!(sent[0] * 60 <= 300, "starts within 300 ms");
+        // Without the reserve the same audio leaves gaps (each one a beep on the radio).
+        let raw = paced_slots(false);
+        assert!(raw.windows(2).any(|w| w[1] != w[0] + 1));
     }
 
     #[test]
