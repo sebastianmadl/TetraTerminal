@@ -169,8 +169,9 @@ async fn full_terminal_session() {
     h.send(Command::Ptt { pressed: true, group: None, emergency: false });
     let Message::CallControl { state: p::CALL_GROUP_TX, id: my, payload: CallPayload::Group(g) } = recv_msg(&mut ws).await else { panic!() };
     assert_eq!((g.source, g.destination, g.mnemonic.as_deref()), (ME, TG, Some("SV1TEST")));
-    h.send(Command::MicPcm(vec![1000; 480 * 2]));
-    for _ in 0..2 {
+    // Three frames: the pacer holds that many before the first goes out.
+    h.send(Command::MicPcm(vec![1000; 480 * 3]));
+    for _ in 0..3 {
         let Message::Frame { kind, id, data, .. } = recv_msg(&mut ws).await else { panic!() };
         assert_eq!((kind, id, data.len()), (p::FRAME_TRAFFIC_CHANNEL, my, 36));
     }
@@ -199,8 +200,10 @@ async fn full_terminal_session() {
     assert!(matches!(recv_msg(&mut ws).await, Message::CallControl { state: p::CALL_CONNECT_REQUEST, .. }));
     send(&mut ws, p::build_grant(p::CALL_CONNECT_CONFIRM, &pid, 0, 0)).await;
     wait_for(&mut ev, |e| matches!(e, ClientEvent::Call(CallEvent::PrivateUpdated(c)) if c.state == tetra_core::calls::PrivateState::Connected)).await;
-    h.send(Command::MicPcm(vec![0; 480])); // duplex: mic live without PTT
-    assert!(matches!(recv_msg(&mut ws).await, Message::Frame { kind: p::FRAME_TRAFFIC_CHANNEL, id, .. } if id == pid));
+    h.send(Command::MicPcm(vec![0; 480 * 3])); // duplex: mic live without PTT
+    for _ in 0..3 {
+        assert!(matches!(recv_msg(&mut ws).await, Message::Frame { kind: p::FRAME_TRAFFIC_CHANNEL, id, .. } if id == pid));
+    }
     send(&mut ws, p::build_cause(p::CALL_RELEASE, &pid, 1)).await;
     wait_for(&mut ev, |e| matches!(e, ClientEvent::Call(CallEvent::PrivateEnded { .. }))).await;
 

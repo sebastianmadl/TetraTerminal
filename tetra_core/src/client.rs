@@ -489,6 +489,11 @@ impl Session {
 
     /// Releases one queued voice frame; called every [`VOICE_PACE`].
     fn pace_voice(&mut self) {
+        // A call that ended (a full-duplex call has no TxEnded) leaves nothing behind.
+        if self.engine.tx_call().is_none() {
+            self.tx_queue.clear();
+            return;
+        }
         if let Some(f) = self.tx_queue.next() {
             self.out.push(f);
         }
