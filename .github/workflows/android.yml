@@ -121,6 +121,9 @@ jobs:
           [ "$(has_service ../out/TetraTerminal-$V.apk)" = 0 ]
           [ "$(has_service ../out/TetraTerminal-$V-arm64.apk)" = 0 ]
           [ "$(has_service ../out/TetraTerminal-$V-poc.apk)" != 0 ]
+          # Which key signed the APKs (an update needs the same one as the installed app).
+          APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs ../out/TetraTerminal-$V.apk | grep -E "certificate (DN|SHA-256)" | head -2
 
       # One upload per file: with archive off the APK downloads as it is, not in a zip.
       - uses: actions/upload-artifact@v7
