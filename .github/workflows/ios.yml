@@ -115,18 +115,20 @@ jobs:
           fi
           mkdir -p ../out/Payload
           cp -R build/ios/iphoneos/Runner.app ../out/Payload/
-          cd ../out && zip -qr tetra-terminal-unsigned.ipa Payload
+          V=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version: *([^+]*).*/\1/')
+          cd ../out && zip -qr TetraTerminal-$V.ipa Payload
 
       - name: Build for Simulator
         working-directory: app
         run: flutter build ios --simulator --debug
 
-      - uses: actions/upload-artifact@v4
+      # With archive off the IPA downloads as it is, not in a zip.
+      - uses: actions/upload-artifact@v7
         with:
-          name: tetra-terminal-unsigned-ipa
-          path: out/tetra-terminal-unsigned.ipa
+          path: out/TetraTerminal-*.ipa
+          archive: false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: tetra-terminal-simulator
+          name: TetraTerminal-simulator
           path: app/build/ios/iphonesimulator/Runner.app

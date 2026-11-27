@@ -117,9 +117,9 @@ jobs:
           flutter build apk $ARGS --split-per-abi
           V=${{ needs.version.outputs.name }}
           mkdir -p ../dist
-          cp build/app/outputs/flutter-apk/app-release.apk             ../dist/tetra-terminal-$V-android-universal.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk   ../dist/tetra-terminal-$V-android-arm64.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ../dist/tetra-terminal-$V-android-arm32.apk
+          cp build/app/outputs/flutter-apk/app-release.apk             ../dist/TetraTerminal-$V-android-universal.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk   ../dist/TetraTerminal-$V-android-arm64.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ../dist/TetraTerminal-$V-android-arm32.apk
           ls -la ../dist
           # Fail if the APK is still signed with the Android debug key.
           APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
@@ -173,7 +173,7 @@ jobs:
           V=${{ needs.version.outputs.name }}
           mkdir -p ../dist/Payload
           cp -R build/ios/iphoneos/Runner.app ../dist/Payload/
-          (cd ../dist && zip -qr tetra-terminal-$V-ios-unsigned.ipa Payload && rm -rf Payload)
+          (cd ../dist && zip -qr TetraTerminal-$V-ios-unsigned.ipa Payload && rm -rf Payload)
           ls -la ../dist
       - uses: actions/upload-artifact@v4
         with:
@@ -200,8 +200,8 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            **Android:** install `tetra-terminal-${{ needs.version.outputs.name }}-android-arm64.apk` on modern phones (`-universal` works everywhere, `-arm32` for older devices).
-            **iOS:** `tetra-terminal-${{ needs.version.outputs.name }}-ios-unsigned.ipa`, install with Sideloadly / AltStore (re-signed with your Apple ID).
+            **Android:** install `TetraTerminal-${{ needs.version.outputs.name }}-android-arm64.apk` on modern phones (`-universal` works everywhere, `-arm32` for older devices).
+            **iOS:** `TetraTerminal-${{ needs.version.outputs.name }}-ios-unsigned.ipa`, install with Sideloadly / AltStore (re-signed with your Apple ID).
           files: |
             dist/*.apk
             dist/*.ipa
