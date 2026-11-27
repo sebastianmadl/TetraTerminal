@@ -646,4 +646,5 @@ const german = <String, String>{
   'Notify on new messages': 'Bei neuen Nachrichten benachrichtigen',
   'Tone for a received text message (SDS), and a notification while the app is in the background':
       'Ton bei einer empfangenen Textnachricht (SDS) und eine Benachrichtigung, wenn die App im Hintergrund ist',
+  'Delete conversation': 'Unterhaltung löschen',
 };

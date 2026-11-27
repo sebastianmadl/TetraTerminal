@@ -187,4 +187,25 @@ void main() {
     expect(calls.where((c) => c.method == 'message'), isEmpty);
     expect(m.unreadMessages(), 1);
   });
+
+  test('messages are kept across restarts, per connection profile', () async {
+    SharedPreferences.setMockInitialValues({});
+    final settings = Settings()..issi = 2320997;
+    final m = TerminalModel(settings);
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Hello', immediate: true));
+    m.sendText(2629001, 'Hi there');
+    await m.saveMessages();
+
+    final again = TerminalModel(settings);
+    await again.loadMessages();
+    expect(again.messages.map((x) => (x.peer, x.outgoing, x.text, x.immediate, x.unread)), [(2629001, false, 'Hello', true, true), (2629001, true, 'Hi there', false, false)]);
+    // Never answered before the app closed.
+    expect(again.messages.last.status, MsgStatus.failed);
+
+    again.deleteConversation(2629001);
+    await again.saveMessages();
+    final third = TerminalModel(settings);
+    await third.loadMessages();
+    expect(third.messages, isEmpty);
+  });
 }

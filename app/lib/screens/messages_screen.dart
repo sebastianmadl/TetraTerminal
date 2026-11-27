@@ -62,7 +62,12 @@ class MessagesScreen extends StatelessWidget {
               for (final p in peers)
                 Builder(builder: (context) {
                   final last = m.messages.lastWhere((x) => x.peer == p);
-                  return Tile(
+                  return GestureDetector(
+                    onLongPress: () async {
+                      final a = await showActions<String>(context, title: label(p), actions: const [SheetAction('Delete conversation', 'delete', destructive: true)]);
+                      if (a == 'delete') m.deleteConversation(p);
+                    },
+                    child: Tile(
                     leading: CircleAvatar(
                       radius: 20,
                       backgroundColor: isGroup(p) ? scheme.primary : scheme.surfaceContainerHigh,
@@ -78,7 +83,7 @@ class MessagesScreen extends StatelessWidget {
                       if (isApple(context)) const CupertinoListTileChevron(),
                     ]),
                     onTap: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: p, title: label(p)))),
-                  );
+                  ));
                 }),
             ]),
           ),

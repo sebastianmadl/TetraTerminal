@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:poc_ptt/poc_ptt.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -41,8 +42,33 @@ enum GroupAccess { open, listen, refused }
 enum MsgStatus { sending, sent, networkAccepted, delivered, failed, received }
 
 class ChatMessage {
-  ChatMessage({required this.peer, required this.outgoing, required this.text, required this.status, this.localId, this.immediate = false})
-      : time = DateTime.now();
+  ChatMessage({required this.peer, required this.outgoing, required this.text, required this.status, this.localId, this.immediate = false, DateTime? time})
+      : time = time ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+        'p': peer,
+        'o': outgoing,
+        'x': text,
+        's': status.name,
+        't': time.millisecondsSinceEpoch,
+        if (immediate) 'i': true,
+        if (unread) 'u': true,
+      };
+
+  /// A stored message. One that was still being sent when the app closed
+  /// never got its answer: it shows as failed.
+  static ChatMessage fromJson(Map<String, dynamic> j) {
+    final status = MsgStatus.values.firstWhere((v) => v.name == j['s'], orElse: () => MsgStatus.received);
+    return ChatMessage(
+      peer: j['p'] as int,
+      outgoing: j['o'] as bool? ?? false,
+      text: j['x'] as String? ?? '',
+      status: status == MsgStatus.sending ? MsgStatus.failed : status,
+      immediate: j['i'] as bool? ?? false,
+      time: DateTime.fromMillisecondsSinceEpoch(j['t'] as int? ?? 0),
+    )..unread = j['u'] as bool? ?? false;
+  }
+
   final int peer; // ISSI or GSSI of the conversation
   final bool outgoing;
   final String text;
@@ -292,6 +318,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     contacts.addListener(notifyListeners);
     await contacts.load();
     await callLog.load();
+    await loadMessages();
     unawaited(contacts.startRadioId());
     audio.speaker = settings.speakerOut;
     audio.captureTx = settings.txCapture;
@@ -473,6 +500,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
+        unawaited(saveMessages());
         // Stay reachable in the background while connected (see AudioIO.keepAlive).
         // Starts already on inactive: by the time the app is paused iOS no
         // longer lets it start playback.
@@ -702,6 +730,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         // Group messages are filed under the group, private ones under the sender.
         final peer = to == settings.issi ? from : to;
         messages.add(ChatMessage(peer: peer, outgoing: false, text: text, status: MsgStatus.received, immediate: immediate)..unread = openConversation != peer);
+        _messagesChanged();
         if (immediate) toast = tr('Flash message from {0}: {1}', [from, text]);
         if (settings.messageAlert) {
           final group = settings.talkgroups.where((t) => t.gssi == peer).firstOrNull;
@@ -719,6 +748,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
           };
           // Never downgrade (a late network report after delivery).
           if (m.status != MsgStatus.delivered) m.status = next;
+          _messagesChanged();
         }
       case AppEvent_LocationReceived(:final from, :final location, :final reason):
         locations[from] = RemoteLocation(from, location, reason);
@@ -827,7 +857,54 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         changed = true;
       }
     }
-    if (changed) notifyListeners();
+    if (changed) {
+      _messagesChanged();
+      notifyListeners();
+    }
+  }
+
+  // ───────── stored messages ─────────
+
+  /// Messages are kept across restarts, per connection profile, newest
+  /// [maxStoredMessages].
+  static const maxStoredMessages = 500;
+  String get _messagesKey => 'messages.v1.${settings.activeId}';
+  String? _messagesDirty;
+  Timer? _messagesTimer;
+
+  Future<void> loadMessages() async {
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(_messagesKey);
+      if (raw == null) return;
+      messages
+        ..clear()
+        ..addAll((jsonDecode(raw) as List).map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)));
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void _messagesChanged() {
+    _messagesDirty = _messagesKey;
+    _messagesTimer?.cancel();
+    _messagesTimer = Timer(const Duration(seconds: 1), saveMessages);
+  }
+
+  Future<void> saveMessages() async {
+    _messagesTimer?.cancel();
+    final key = _messagesDirty;
+    if (key == null) return;
+    _messagesDirty = null;
+    if (messages.length > maxStoredMessages) messages.removeRange(0, messages.length - maxStoredMessages);
+    try {
+      await (await SharedPreferences.getInstance()).setString(key, jsonEncode([for (final x in messages) x.toJson()]));
+    } catch (_) {}
+  }
+
+  /// Removes the whole conversation with [peer].
+  void deleteConversation(int peer) {
+    messages.removeWhere((x) => x.peer == peer);
+    _messagesChanged();
+    notifyListeners();
   }
 
   // ───────── actions ─────────
@@ -978,6 +1055,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     final id = _nextLocalId++;
     final isGroup = settings.talkgroups.any((t) => t.gssi == to);
     messages.add(ChatMessage(peer: to, outgoing: true, text: text, status: MsgStatus.sending, localId: id, immediate: immediate));
+    _messagesChanged();
     // No SDS-TL report for group-addressed messages: every member would answer.
     _client?.sendText(localId: id, to: to, text: text, immediate: immediate, requestReport: !isGroup);
     notifyListeners();
@@ -999,9 +1077,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     settings.activeId = id;
     networks = const [];
     extensions = const [];
+    // Every connection profile keeps its own messages.
+    await saveMessages();
     messages.clear();
     locations.clear();
     await settings.save();
+    await loadMessages();
     if (settings.isConfigured) {
       await connect();
     } else {
