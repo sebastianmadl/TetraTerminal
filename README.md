@@ -220,6 +220,11 @@ and has to be sideloaded.
 
 ### Builds from GitHub Actions (no Mac needed)
 
+`.github/workflows/testflight.yml` (started by hand, or by a version tag)
+signs the iOS app and uploads it to TestFlight. It needs the App Store
+Connect API key and the team ID as repository secrets, listed at the top of
+the file.
+
 `.github/workflows/android.yml` and `ios.yml` build the app on every push to
 `main`, or by hand from the Actions tab for any branch. The files download as
 they are:
