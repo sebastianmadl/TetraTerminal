@@ -263,10 +263,10 @@ const german = <String, String>{
       'Sprechername',
   'Shown to others':
       'Sehen die anderen',
-  'Outside line':
-      'Amtsleitung',
+  'Phone prefix':
+      'Telefon-Vorwahl',
   'Prefix for phone calls':
-      'Vorwahl für Telefonrufe',
+      'Vorwahl für Telefonanrufe',
   'Only used when the server offers it. Leave on "This server\'s network" unless your ISSI belongs to another network.':
       'Wird nur verwendet, wenn der Server es anbietet. Lass es auf „Netz dieses Servers“, außer deine ISSI gehört zu einem anderen Netz.',
   'Home network':

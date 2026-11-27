@@ -156,7 +156,15 @@ class FieldRow extends StatelessWidget {
     this.obscure = false,
     this.keyboard,
     this.validator,
+    this.upperCase = false,
+    this.translate = true,
   });
+
+  /// Typed text is turned into capitals (callsigns).
+  final bool upperCase;
+
+  /// False for a label that reads the same in every language.
+  final bool translate;
   final String label;
   final String initial;
   final ValueChanged<String> onChanged;
@@ -169,11 +177,18 @@ class FieldRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = keyboard ?? (number ? TextInputType.number : TextInputType.text);
-    final formatters = number ? [FilteringTextInputFormatter.digitsOnly] : null;
+    final formatters = number
+        ? [FilteringTextInputFormatter.digitsOnly]
+        : upperCase
+            ? [TextInputFormatter.withFunction((_, v) => v.copyWith(text: v.text.toUpperCase()))]
+            : null;
+    final capitals = upperCase ? TextCapitalization.characters : TextCapitalization.none;
+    final shown = translate ? tr(label) : label;
     if (isApple(context)) {
       return CupertinoTextFormFieldRow(
-        prefix: SizedBox(width: 112, child: Text(tr(label))),
+        prefix: SizedBox(width: 112, child: Text(shown)),
         initialValue: initial,
+        textCapitalization: capitals,
         placeholder: hint == null ? null : tr(hint!),
         obscureText: obscure,
         keyboardType: type,
@@ -189,13 +204,14 @@ class FieldRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Tokens.gutter, 10, Tokens.gutter, 10),
       child: TextFormField(
         initialValue: initial,
+        textCapitalization: capitals,
         obscureText: obscure,
         keyboardType: type,
         inputFormatters: formatters,
         autocorrect: false,
         validator: validator,
         onChanged: onChanged,
-        decoration: InputDecoration(labelText: tr(label), hintText: hint == null ? null : tr(hint!), border: InputBorder.none, isDense: true),
+        decoration: InputDecoration(labelText: shown, hintText: hint == null ? null : tr(hint!), border: InputBorder.none, isDense: true),
       ),
     );
   }

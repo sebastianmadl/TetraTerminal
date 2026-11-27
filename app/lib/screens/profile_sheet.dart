@@ -53,8 +53,8 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                   ]),
                   Section(header: 'Server', children: [
                     FieldRow(label: 'URL', initial: p.serverUrl, keyboard: TextInputType.url, hint: 'https://host:9000/brew/', onChanged: (v) => p.serverUrl = v.trim()),
-                    FieldRow(label: 'Username', initial: p.username, hint: 'as in [auth.users]', onChanged: (v) => p.username = v.trim()),
-                    FieldRow(label: 'Password', initial: p.password, obscure: true, hint: 'Stored in the keychain', onChanged: (v) => p.password = v),
+                    FieldRow(label: 'Username', initial: p.username, onChanged: (v) => p.username = v.trim()),
+                    FieldRow(label: 'Password', initial: p.password, obscure: true, hint: 'Password', onChanged: (v) => p.password = v),
                     SwitchRow(title: 'Accept self-signed certificate', subtitle: 'Lab servers only', value: p.insecureTls, onChanged: (v) => setState(() => p.insecureTls = v)),
                   ]),
                   if (Settings.basestationModeAvailable)
@@ -86,8 +86,8 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
                     ),
                   Section(header: 'Radio', children: [
                     FieldRow(label: 'ISSI', initial: p.issi == 0 ? '' : '${p.issi}', number: true, validator: number, onChanged: (v) => p.issi = int.tryParse(v) ?? 0),
-                    FieldRow(label: 'Talker name', initial: p.name, hint: 'Shown to others', onChanged: (v) => p.name = v.trim()),
-                    FieldRow(label: 'Outside line', initial: p.externalPrefix, keyboard: TextInputType.phone, hint: 'Prefix for phone calls', onChanged: (v) => p.externalPrefix = v.trim()),
+                    FieldRow(label: 'Call', translate: false, upperCase: true, initial: p.name.toUpperCase(), hint: 'Shown to others', onChanged: (v) => p.name = v.trim().toUpperCase()),
+                    FieldRow(label: 'Phone prefix', initial: p.externalPrefix, keyboard: TextInputType.phone, hint: 'Prefix for phone calls', onChanged: (v) => p.externalPrefix = v.trim()),
                   ]),
                   Section(
                     header: 'Multi Network',
