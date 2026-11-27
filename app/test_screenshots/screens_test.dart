@@ -253,9 +253,7 @@ void main() {
 
   testWidgets('10 settings dark, appearance', (t) async {
     final m = _model()..settings.appearance = 'dark';
-    await _shot(t, '10-settings-appearance-dark', m, const HomeScreen(initialTab: 4), b: Brightness.dark, act: (t) async {
-      await t.drag(find.byType(CustomScrollView), const Offset(0, -420));
-    });
+    await _shot(t, '10-settings-appearance-dark', m, const DisplaySettings(), b: Brightness.dark);
   });
 
   testWidgets('08 android radio', (t) async {
@@ -327,9 +325,7 @@ void main() {
   });
 
   testWidgets('16 android settings', (t) async {
-    await _shot(t, '16-android-settings', _model(), const HomeScreen(initialTab: 4), p: TargetPlatform.android, act: (t) async {
-      await t.drag(find.byType(CustomScrollView), const Offset(0, -380));
-    });
+    await _shot(t, '16-android-settings', _model(), const HomeScreen(initialTab: 4), p: TargetPlatform.android);
   });
 
   testWidgets('17 android recents', (t) async {
@@ -337,4 +333,37 @@ void main() {
   });
 
   tearDownAll(() => debugDefaultTargetPlatformOverride = null);
+
+  // Settings pages, iOS and Android.
+  for (final (n, name, page) in <(int, String, Widget)>[
+    (33, 'radio', const RadioSettings()),
+    (34, 'calls', const CallSettings()),
+    (35, 'audio', const AudioSettings()),
+    (36, 'display', const DisplaySettings()),
+    (37, 'location', const LocationSettings()),
+  ]) {
+    testWidgets('$n settings $name', (t) async {
+      await _shot(t, '$n-settings-$name', _model()..settings.lipEnabled = true, page);
+    });
+    testWidgets('$n android settings $name', (t) async {
+      await _shot(t, '$n-android-settings-$name', _model()..settings.lipEnabled = true, page, p: TargetPlatform.android);
+    });
+  }
+
+  testWidgets('38 android settings keys', (t) async {
+    final m = _model()..settings.pocPttEnabled = true;
+    await _shot(t, '38-android-settings-keys', m, const HardwareSettings(), p: TargetPlatform.android);
+  });
+
+  testWidgets('39 android settings on a small PoC screen', (t) async {
+    final m = _model()..settings.pocPttEnabled = true;
+    await _shot(t, '39-android-settings-small', m, const HomeScreen(initialTab: 4), p: TargetPlatform.android, size: const Size(320, 533));
+  });
+
+  testWidgets('40 android settings menu', (t) async {
+    final m = _model()..settings.pocPttEnabled = true;
+    await _shot(t, '40-android-settings-menu', m, const HomeScreen(initialTab: 4), p: TargetPlatform.android, act: (t) async {
+      await t.drag(find.byType(CustomScrollView), const Offset(0, -330));
+    });
+  });
 }

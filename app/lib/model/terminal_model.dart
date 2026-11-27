@@ -1012,6 +1012,19 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     await settings.save();
   }
 
+  /// A settings page was left: store the settings and put them to work.
+  /// [reconnect] when something changed that the server is told at login,
+  /// [inputs] when the hardware keys were set.
+  Future<void> settingsEdited({required bool reconnect, bool inputs = false}) async {
+    if (reconnect) return applySettings(settings);
+    await settings.save();
+    if (inputs) {
+      await _startPttInput();
+      await _startPocPtt();
+    }
+    notifyListeners();
+  }
+
   Future<void> applySettings(Settings s) async {
     settings = s;
     audio.micGainDb = s.micGainDb;
