@@ -229,7 +229,7 @@ impl TetraClient {
                 url: config.server_url,
                 username: config.username,
                 password: config.password,
-                user_agent: format!("TetraBrewTerminal/{}", env!("CARGO_PKG_VERSION")),
+                user_agent: format!("TetraTerminal/{}", env!("CARGO_PKG_VERSION")),
                 insecure_tls: config.insecure_tls,
                 mode: if config.basestation { crate::transport::BrewMode::Basestation } else { crate::transport::BrewMode::Terminal },
             },
@@ -368,7 +368,7 @@ impl TetraControl {
             url: url.to_string(),
             username: config.username,
             password: config.password,
-            user_agent: format!("TetraBrewTerminal/{}", env!("CARGO_PKG_VERSION")),
+            user_agent: format!("TetraTerminal/{}", env!("CARGO_PKG_VERSION")),
             insecure_tls: config.insecure_tls,
         };
         let groups = config

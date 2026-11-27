@@ -4,4 +4,4 @@ const appVersion = '1.6.1';
 
 /// The one User-Agent for every request the app makes (Brew login and
 /// downloads), so servers always see the same name and version.
-const userAgent = 'TetraBrewTerminal/$appVersion';
+const userAgent = 'TetraTerminal/$appVersion';

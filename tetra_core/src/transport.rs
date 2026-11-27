@@ -344,13 +344,13 @@ mod tests {
 
     #[test]
     fn discovery_sends_the_profile_login_mode() {
-        let mut ep = Endpoint { url: String::new(), username: String::new(), password: String::new(), user_agent: "TetraBrewTerminal/1.4.0".into(), insecure_tls: false, mode: BrewMode::default() };
+        let mut ep = Endpoint { url: String::new(), username: String::new(), password: String::new(), user_agent: "TetraTerminal/1.4.0".into(), insecure_tls: false, mode: BrewMode::default() };
         let req = discovery_request("/brew/", "h", &ep, None);
         assert!(req.contains("\r\nX-Brew-Mode: Terminal\r\n"), "{req}");
         ep.mode = BrewMode::Basestation;
         let req = discovery_request("/brew/", "h", &ep, Some("Digest x"));
         assert!(req.contains("\r\nX-Brew-Mode: Basestation\r\n"), "{req}");
-        assert!(req.contains("\r\nUser-Agent: TetraBrewTerminal/1.4.0\r\n"));
+        assert!(req.contains("\r\nUser-Agent: TetraTerminal/1.4.0\r\n"));
         assert!(req.ends_with("Authorization: Digest x\r\n\r\n"));
     }
 

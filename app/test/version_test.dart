@@ -9,6 +9,6 @@ void main() {
     final cargo = RegExp(r'^version\s*=\s*"([0-9.]+)"', multiLine: true).firstMatch(File('../tetra_core/Cargo.toml').readAsStringSync())!.group(1);
     expect(appVersion, pub);
     expect(cargo, pub);
-    expect(userAgent, 'TetraBrewTerminal/$pub');
+    expect(userAgent, 'TetraTerminal/$pub');
   });
 }

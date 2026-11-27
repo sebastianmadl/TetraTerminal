@@ -143,7 +143,7 @@ First version of the rebuilt app.
 - Reconnect on resume; optional keep-alive so calls come in with the screen
   locked.
 - One User-Agent with the app version everywhere
-  (`TetraBrewTerminal/<version>`); a test keeps pubspec, Cargo.toml and the
+  (`TetraTerminal/<version>`); a test keeps pubspec, Cargo.toml and the
   Dart constant equal.
 - `REREGISTER` is followed by `AFFILIATE`.
 

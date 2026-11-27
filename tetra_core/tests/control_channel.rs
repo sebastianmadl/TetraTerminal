@@ -32,7 +32,7 @@ async fn dgna_for_our_issi_is_applied_and_reported() {
         url: control::control_url(&format!("127.0.0.1:{port}"), "", false).unwrap().to_string(),
         username: ME.to_string(),
         password: "pw".into(),
-        user_agent: "TetraBrewTerminal/test".into(),
+        user_agent: "TetraTerminal/test".into(),
         insecure_tls: false,
     };
     let held = vec![DgnaGroup { gssi: 2328, mnemonic: Some("Old".into()), attachment_mode: 0 }];
