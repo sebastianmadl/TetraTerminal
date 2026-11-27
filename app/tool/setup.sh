@@ -95,7 +95,9 @@ fi
 
 # iOS bundle id. Android keeps its applicationId (org.tetra.terminal.tetra_terminal
 # from --org above): a new one would install as a second app beside the old.
-IOS_BUNDLE_ID=org.tmoaustria.tetraterminal
+# The test builds (ios.yml) set IOS_BUNDLE_ID=org.tmoaustria.tetraterminal.dev
+# so a sideloaded test build sits beside the TestFlight / App Store app.
+IOS_BUNDLE_ID=${IOS_BUNDLE_ID:-org.tmoaustria.tetraterminal}
 python3 - ios/Runner.xcodeproj/project.pbxproj "$IOS_BUNDLE_ID" <<'PY'
 import re, sys
 p, app = sys.argv[1], sys.argv[2]
@@ -214,12 +216,12 @@ PY
 # 6. App icon and display name.
 dart run flutter_launcher_icons
 sed -i.bak -E 's/android:label="[^"]*"/android:label="TETRA Terminal"/' android/app/src/main/AndroidManifest.xml && rm -f android/app/src/main/AndroidManifest.xml.bak
-python3 - ios/Runner/Info.plist <<'PY'
+python3 - ios/Runner/Info.plist "${IOS_DISPLAY_NAME:-TETRA Terminal}" <<'PY'
 import plistlib, sys
 p = sys.argv[1]
 d = plistlib.load(open(p, 'rb'))
-d['CFBundleDisplayName'] = 'TETRA Terminal'
-d['CFBundleName'] = 'TETRA Terminal'
+d['CFBundleDisplayName'] = sys.argv[2]
+d['CFBundleName'] = sys.argv[2]
 plistlib.dump(d, open(p, 'wb'))
 PY
 

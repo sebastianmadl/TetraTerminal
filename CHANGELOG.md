@@ -15,6 +15,11 @@ tests but still wait for a test on real hardware.
   `org.tetra.terminal.tetraTerminal`). iOS installs it as a new app beside
   the old one: connections, contacts and messages have to be set up again,
   then the old app can be deleted. Android keeps its id and updates as before.
+- The iOS test builds from every push (ios.yml) use the bundle id
+  `org.tmoaustria.tetraterminal.dev` and the name "TETRA Dev", so they
+  install beside the TestFlight app instead of clashing with it.
+- TestFlight: `testflight.yml` signs the app and uploads it to App Store
+  Connect, started by hand or by a version tag.
 
 - README: section "Voice codec and audio chain" lists what was changed in
   the ACELP codec and in the audio path around it compared with the
