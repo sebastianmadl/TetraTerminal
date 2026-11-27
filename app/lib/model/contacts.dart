@@ -8,16 +8,41 @@ import 'package:path_provider/path_provider.dart';
 import '../services/version.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// A contact the user saved: ISSI and name.
+/// A contact the user saved: ISSI and name. A favourite is listed on top of
+/// the Contacts tab and may carry a speed dial code for the keypad.
 class Contact {
-  Contact(this.issi, this.name, {this.note = ''});
+  Contact(this.issi, this.name, {this.note = '', this.favorite = false, this.speedDial = ''});
   final int issi;
   String name;
   String note;
+  bool favorite;
 
-  Map<String, dynamic> toJson() => {'issi': issi, 'name': name, if (note.isNotEmpty) 'note': note};
-  static Contact fromJson(Map<String, dynamic> j) => Contact(j['issi'] as int, j['name'] as String? ?? '', note: j['note'] as String? ?? '');
+  /// `*` or `#` and up to four digits, e.g. `*1`; empty for none.
+  String speedDial;
+
+  Map<String, dynamic> toJson() => {
+        'issi': issi,
+        'name': name,
+        if (note.isNotEmpty) 'note': note,
+        if (favorite) 'fav': true,
+        if (speedDial.isNotEmpty) 'sd': speedDial,
+      };
+  static Contact fromJson(Map<String, dynamic> j) => Contact(j['issi'] as int, j['name'] as String? ?? '',
+      note: j['note'] as String? ?? '', favorite: j['fav'] as bool? ?? false, speedDial: j['sd'] as String? ?? '');
 }
+
+/// A speed dial code as it is stored: `*` or `#` followed by one to four
+/// digits. Digits alone get a `*`. Empty text gives '', anything else null.
+String? normalizeSpeedDial(String text) {
+  final t = text.replaceAll(' ', '');
+  if (t.isEmpty) return '';
+  final m = RegExp(r'^([*#]?)([0-9]{1,4})$').firstMatch(t);
+  if (m == null) return null;
+  return '${m[1]!.isEmpty ? '*' : m[1]}${m[2]}';
+}
+
+/// True for text typed on the keypad that is a speed dial, not an ISSI.
+bool isSpeedDial(String text) => text.startsWith('*') || text.startsWith('#');
 
 /// One entry of the RadioID.net database: callsign and first name.
 typedef RadioIdEntry = ({String callsign, String firstName});
@@ -43,6 +68,19 @@ class ContactBook extends ChangeNotifier {
   String? nameOf(int issi) => contactOf(issi)?.name ?? _radioId[issi]?.callsign;
   Contact? contactOf(int issi) => contacts.where((c) => c.issi == issi).firstOrNull;
   RadioIdEntry? radioIdOf(int issi) => _radioId[issi];
+
+  /// Favourites, those with a speed dial first, in the order of their codes.
+  List<Contact> get favorites => contacts.where((c) => c.favorite).toList()
+    ..sort((a, b) {
+      if (a.speedDial.isEmpty != b.speedDial.isEmpty) return a.speedDial.isEmpty ? 1 : -1;
+      final c = a.speedDial.length.compareTo(b.speedDial.length);
+      if (c != 0) return c;
+      final d = a.speedDial.compareTo(b.speedDial);
+      return d != 0 ? d : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+  /// The favourite behind a speed dial code typed on the keypad.
+  Contact? bySpeedDial(String code) => code.isEmpty ? null : contacts.where((c) => c.favorite && c.speedDial == code).firstOrNull;
 
   /// RadioID entries for a search text: callsigns that start with it (every
   /// ID of a callsign is its own row), or IDs that start with it when it is a
@@ -107,11 +145,27 @@ class ContactBook extends ChangeNotifier {
     }));
   }
 
+  /// Adds or replaces a contact. A speed dial code belongs to one contact:
+  /// it is taken from whoever had it, and makes its contact a favourite.
   Future<void> put(Contact c) async {
+    if (c.speedDial.isNotEmpty) {
+      c.favorite = true;
+      for (final x in contacts) {
+        if (x.issi != c.issi && x.speedDial == c.speedDial) x.speedDial = '';
+      }
+    }
     contacts
       ..removeWhere((x) => x.issi == c.issi)
       ..add(c)
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    notifyListeners();
+    await save();
+  }
+
+  /// Marks or unmarks a favourite. Unmarking drops its speed dial.
+  Future<void> setFavorite(Contact c, bool on) async {
+    c.favorite = on;
+    if (!on) c.speedDial = '';
     notifyListeners();
     await save();
   }

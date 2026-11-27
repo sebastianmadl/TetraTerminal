@@ -649,4 +649,13 @@ const german = <String, String>{
   'Delete conversation': 'Unterhaltung löschen',
   'Quit app': 'App beenden',
   'Connect': 'Verbinden',
+  'Favourites': 'Favoriten',
+  'Add to favourites': 'Zu Favoriten hinzufügen',
+  'Remove from favourites': 'Aus Favoriten entfernen',
+  'Speed dial': 'Schnellwahl',
+  '* or # and a number, e.g. *1': '* oder # und eine Nummer, z. B. *1',
+  'No favourite with this speed dial': 'Kein Favorit mit dieser Schnellwahl',
+  'Not in your contacts': 'Nicht in deinen Kontakten',
+  'Nothing found. Type the number (ISSI) to call it or write to it directly.':
+      'Nichts gefunden. Tipp die Nummer (ISSI) ein, um sie direkt anzurufen oder ihr zu schreiben.',
 };

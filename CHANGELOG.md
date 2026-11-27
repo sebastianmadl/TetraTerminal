@@ -9,6 +9,32 @@ chain, PoC radio support, phone-style calls and the messages rework.
 Entries marked *(not yet verified on a device)* compile and pass the automated
 tests but still wait for a test on real hardware.
 
+## 1.6.2 (2026-11-27)
+
+### Contacts
+- Search field on top of the Contacts tab, like in a new message: type a
+  number, a name or a callsign. It searches the own contacts and the
+  RadioID.net list; a callsign with several IDs lists each ID in its own row.
+  A number that is not saved can be called or written to directly.
+- Every row has a message and a call button. Tapping a row that is not a
+  contact yet offers to add it.
+- Favourites: a contact can be marked as a favourite and is then listed on
+  top of the Contacts tab.
+- Speed dial: a favourite can carry a code of `*` or `#` and up to four
+  digits (for example `*1`), set in the contact form. Dialling the code on
+  the keypad shows the favourite and calls its ISSI. A code belongs to one
+  contact at a time.
+
+### iOS
+- Dynamic Island: RX / TX is centred under the timer, and the standby pill in
+  the expanded view no longer runs into the rounded corner.
+
+### Other
+- The app logs in as `TetraTerminal/<version>` (was `TetraBrewTerminal`).
+- README brought up to date, this changelog added.
+
+*(not yet verified on a device: all of the above)*
+
 ## 1.6.1 (2026-11-27)
 
 ### Android builds
@@ -143,7 +169,7 @@ First version of the rebuilt app.
 - Reconnect on resume; optional keep-alive so calls come in with the screen
   locked.
 - One User-Agent with the app version everywhere
-  (`TetraTerminal/<version>`); a test keeps pubspec, Cargo.toml and the
+  (`TetraBrewTerminal/<version>`); a test keeps pubspec, Cargo.toml and the
   Dart constant equal.
 - `REREGISTER` is followed by `AFFILIATE`.
 

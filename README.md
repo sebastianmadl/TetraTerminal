@@ -26,7 +26,7 @@ each version is in [CHANGELOG.md](CHANGELOG.md).
 | Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | ✅ live-tested |
 
 | Connection profiles (several servers / ISSIs), passwords in the keychain | ✅ in app |
-| Contacts, call log, RadioID.net callsign names | ✅ in app |
+| Contacts with search across the RadioID.net list, favourites and speed dial (`*1` on the keypad), call log | ✅ in app |
 | Server extensions when offered: `mni` (Multi Network), `group-access` | ✅ in app |
 | Radio screen with scan hold, level meter, last talkers | ✅ in app |
 | Audio chain: transmit level control, 300 Hz high-pass, noise suppression (speexdsp), receive level control, transmit buffer | ✅ in app |

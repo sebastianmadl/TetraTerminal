@@ -39,7 +39,9 @@ class CallsScreenState extends State<CallsScreen> {
 
   void _key(String k) {
     final max = _external ? 31 : 8;
-    if (!_external && !RegExp(r'[0-9]').hasMatch(k)) return;
+    // TETRA: digits, or * / # in front for the speed dial of a favourite.
+    if (!_external && !RegExp(r'[0-9]').hasMatch(k) && _number.isNotEmpty) return;
+    if (!_external && isSpeedDial(_number) && _number.length >= 5) return;
     if (_number.length >= max) return;
     Haptics.select();
     setState(() => _number += k);
@@ -54,6 +56,9 @@ class CallsScreenState extends State<CallsScreen> {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final prefix = m.settings.externalPrefix;
+    // "*1" on the TETRA keypad is the speed dial of a favourite.
+    final speed = !_external && isSpeedDial(_number);
+    final favorite = speed ? m.contacts.bySpeedDial(_number) : null;
     final options = _external
         ? tr('Phone via the server\'s SIP gateway · P{0}', [_priority])
         : '${tr(_duplex ? 'Full duplex' : 'Half duplex')} · ${tr(_hook ? 'rings' : 'direct')} · P$_priority${_priority >= 15 ? ' ${tr('emergency')}' : ''}';
@@ -67,7 +72,7 @@ class CallsScreenState extends State<CallsScreen> {
         // stays above the navigation bar.
         final compact = box.maxHeight < 560;
         final rowGap = compact ? 3.0 : 7.0;
-        final byHeight = (box.maxHeight - (compact ? 196 : 260)) / 5 - 2 * rowGap;
+        final byHeight = (box.maxHeight - (compact ? 196 : 260) - (speed ? 20 : 0)) / 5 - 2 * rowGap;
         final keySize = math.min(byWidth, byHeight).clamp(compact ? 34.0 : 48.0, 80.0);
         final top = Padding(
           padding: EdgeInsets.fromLTRB(Tokens.gutter, compact ? 6 : 12, Tokens.gutter, 0),
@@ -98,6 +103,13 @@ class CallsScreenState extends State<CallsScreen> {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
+          if (speed)
+            Text(
+              favorite == null ? tr('No favourite with this speed dial') : '${favorite.name} · ${favorite.issi}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: text.bodyMedium?.copyWith(color: favorite == null ? scheme.outline : scheme.primary, fontWeight: FontWeight.w600),
+            ),
           SizedBox(height: compact ? 0 : 6),
           TextButton.icon(
             style: compact ? TextButton.styleFrom(visualDensity: VisualDensity.compact, tapTargetSize: MaterialTapTargetSize.shrinkWrap, minimumSize: const Size(0, 32)) : null,
@@ -111,7 +123,7 @@ class CallsScreenState extends State<CallsScreen> {
               padding: EdgeInsets.symmetric(vertical: rowGap),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 for (final k in row)
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: _Key(k, size: keySize, enabled: _external || RegExp(r'[0-9]').hasMatch(k), onTap: () => _key(k))),
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: _Key(k, size: keySize, enabled: _external || _number.isEmpty || RegExp(r'[0-9]').hasMatch(k), onTap: () => _key(k))),
               ]),
             ),
           SizedBox(height: compact ? 3 : 10),
@@ -122,7 +134,7 @@ class CallsScreenState extends State<CallsScreen> {
               color: Tokens.online,
               icon: CupertinoIcons.phone_fill,
               label: 'Call',
-              onTap: !online || _number.isEmpty ? null : () => _dial(m),
+              onTap: !online || _number.isEmpty || (speed && favorite == null) ? null : () => _dial(m),
             ),
             SizedBox(
               width: keySize + 24,
@@ -147,7 +159,7 @@ class CallsScreenState extends State<CallsScreen> {
       m.dialExternal(_number, priority: _priority);
       return;
     }
-    final issi = int.tryParse(_number);
+    final issi = isSpeedDial(_number) ? m.contacts.bySpeedDial(_number)?.issi : int.tryParse(_number);
     if (issi == null || issi <= 0) return;
     m.dial(issi, duplex: _duplex, hook: _hook, priority: _priority);
   }

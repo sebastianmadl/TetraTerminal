@@ -74,4 +74,47 @@ void main() {
     expect(b.searchRadioId('o'), isEmpty);
     expect(b.searchRadioId('zz'), isEmpty);
   });
+
+  test('speed dial codes: * or # with digits, digits alone get a *, anything else is refused', () {
+    expect(normalizeSpeedDial('*1'), '*1');
+    expect(normalizeSpeedDial('#12'), '#12');
+    expect(normalizeSpeedDial(' 7 '), '*7');
+    expect(normalizeSpeedDial(''), '');
+    expect(normalizeSpeedDial('*'), isNull);
+    expect(normalizeSpeedDial('*12345'), isNull);
+    expect(normalizeSpeedDial('a1'), isNull);
+    expect(isSpeedDial('*1'), isTrue);
+    expect(isSpeedDial('#1'), isTrue);
+    expect(isSpeedDial('2320997'), isFalse);
+  });
+
+  test('favourites: a speed dial makes a favourite, belongs to one contact, and is found from the keypad', () async {
+    SharedPreferences.setMockInitialValues({});
+    final b = ContactBook();
+    await b.put(Contact(2320997, 'OE4SXM', speedDial: '*1'));
+    await b.put(Contact(2320415, 'OE3KLM', favorite: true));
+    await b.put(Contact(2320500, 'Dispatch'));
+    expect(b.favorites.map((c) => c.issi), [2320997, 2320415]);
+    expect(b.bySpeedDial('*1')?.issi, 2320997);
+    expect(b.bySpeedDial('#1'), isNull);
+    expect(b.bySpeedDial(''), isNull);
+
+    // The code moves to the contact it is given to.
+    await b.put(Contact(2320500, 'Dispatch', speedDial: '*1'));
+    expect(b.bySpeedDial('*1')?.issi, 2320500);
+    expect(b.contactOf(2320997)!.speedDial, '');
+    expect(b.contactOf(2320997)!.favorite, isTrue);
+
+    // Kept across a restart; unmarking drops the code.
+    final again = ContactBook();
+    await again.load();
+    expect(again.bySpeedDial('*1')?.issi, 2320500);
+    expect(again.favorites.length, 3);
+    await again.setFavorite(again.contactOf(2320500)!, false);
+    expect(again.bySpeedDial('*1'), isNull);
+
+    // Contacts saved before favourites existed load as plain contacts.
+    final old = Contact.fromJson({'issi': 1, 'name': 'x'});
+    expect((old.favorite, old.speedDial), (false, ''));
+  });
 }

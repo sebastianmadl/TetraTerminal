@@ -444,4 +444,35 @@ void main() {
     await _shot(t, '53-android-messages-unread', m, const HomeScreen(initialTab: 3), p: TargetPlatform.android);
     await _shot(t, '54-android-contacts-small', m, const HomeScreen(initialTab: 2), p: TargetPlatform.android, size: const Size(320, 533));
   });
+
+  testWidgets('57 contacts: search, favourites and speed dial', (t) async {
+    final m = _model();
+    m.contacts.radioIdForTest = {2320856: (callsign: 'OE4SXM', firstName: 'Sebastian'), 2320997: (callsign: 'OE4SXM', firstName: 'Sebastian'), 2320415: (callsign: 'OE3KLM', firstName: 'Karl'), 2320972: (callsign: 'OE1ABC', firstName: 'Anna')};
+    m.contacts.contacts
+      ..firstWhere((c) => c.issi == 2320972).favorite = true
+      ..firstWhere((c) => c.issi == 2320972).speedDial = '*1'
+      ..firstWhere((c) => c.issi == 2320500).favorite = true
+      ..firstWhere((c) => c.issi == 2320500).speedDial = '#12';
+    await _shot(t, '57-contacts-favourites', m, const HomeScreen(initialTab: 2));
+    await _shot(t, '58-contacts-search', m, const HomeScreen(initialTab: 2), act: (t) async {
+      await t.enterText(find.byType(EditableText), 'oe');
+      await t.pump();
+    });
+    await _shot(t, '59-android-contacts-favourites-small', m, const HomeScreen(initialTab: 2), p: TargetPlatform.android, size: const Size(320, 533));
+    await _shot(t, '60-android-contacts-search-small', m, const HomeScreen(initialTab: 2), p: TargetPlatform.android, size: const Size(320, 533), act: (t) async {
+      await t.enterText(find.byType(EditableText), '2320');
+      await t.pump();
+    });
+    Future<void> dial(WidgetTester t) async {
+      await t.tap(find.text('Keypad'));
+      await t.pump();
+      await t.tap(find.text('*'));
+      await t.pump();
+      await t.tap(find.text('1'));
+      await t.pump();
+    }
+
+    await _shot(t, '61-keypad-speed-dial', m, const HomeScreen(initialTab: 1), act: dial);
+    await _shot(t, '62-android-keypad-speed-dial-small', m, const HomeScreen(initialTab: 1), p: TargetPlatform.android, size: const Size(320, 533), act: dial);
+  });
 }
