@@ -110,7 +110,8 @@ The pictures are rendered from the app's code with sample data
 | iOS: Live Activity, Dynamic Island, widget, background audio, own microphone capture | ✅ in app |
 | PoC radios (Hytera P60): hardware PTT key, channel knob, status LED | ✅ in app |
 | Incoming private calls ring like a phone call (iOS CallKit, Android call notification), ring tone choice | 🧪 built, device test open |
-| Messages: new-message search, tone and notification, unread counters, kept across restarts | 🧪 built, device test open |
+| Messages are kept across restarts | ✅ checked on a device |
+| Messages: new-message search, tone and notification, unread counters | 🧪 built, device test open |
 | German and English | ✅ in app |
 
 "Live-tested" means two instances of the client exchanged it through a real

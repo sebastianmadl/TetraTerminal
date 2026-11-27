@@ -82,8 +82,8 @@ tests but still wait for a test on real hardware.
 - About: both authors listed under Developers.
 
 *(not yet verified on a device: Play Protect accepting the phone APK, in-app
-ringing on the P60, SDS tone and notification, Back / Quit app, stored
-messages)*
+ringing on the P60, SDS tone and notification, Back / Quit app. Stored
+messages were checked on a device on 2026-11-27.)*
 
 ## 1.6.0 (2026-11-27)
 
