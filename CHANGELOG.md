@@ -15,6 +15,20 @@ tests but still wait for a test on real hardware.
   the ACELP codec and in the audio path around it compared with the
   original. The feature table renders as one table again.
 - Calls and messages are marked as checked on a device.
+- Earpiece in calls: the call screen has its own loudspeaker / earpiece
+  button, next to the keypad, in every call once it no longer rings here
+  (before, the switch was only on the Radio tab, and hidden there on PoC
+  radios). *(not yet verified on a device)*
+- Android: the earpiece really plays. Android only routes voice-call audio
+  to the earpiece, and the app played everything as media audio, so the
+  switch had no effect. In earpiece mode the player now runs as voice-call
+  audio (with the earpiece chosen as communication device on Android 12+);
+  loudspeaker and headset stay at media volume as before. The player is a
+  vendored copy of `flutter_pcm_sound` 3.3.3 with this one addition.
+  *(not yet verified on a device)*
+- iOS: switching to the loudspeaker or the receiver on the system call
+  screen is kept and the app's button follows, instead of the app switching
+  back at the next audio change. *(not yet verified on a device)*
 
 ## 1.6.2 (2026-11-27)
 

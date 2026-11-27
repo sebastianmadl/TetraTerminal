@@ -137,10 +137,15 @@ class AudioIO {
     session.devicesChangedEventStream.listen((_) => _applyRoute());
     if (_isApple) {
       AVAudioSession().routeChangeStream.listen((c) {
-        if (c.reason != AVAudioSessionRouteChangeReason.override) _applyRoute();
+        // An override comes from us or from the speaker button on the
+        // system call screen (CallKit): follow it instead of undoing it.
+        if (c.reason == AVAudioSessionRouteChangeReason.override) {
+          _followOverride();
+        } else {
+          _applyRoute();
+        }
       });
     }
-    await _applyRoute();
     // ~120 ms of headroom: two Brew frames of jitter.
     await FlutterPcmSound.setFeedThreshold(_outRate ~/ 8);
     // The plugin reports how much is really queued; keeps our estimate honest.
@@ -149,6 +154,7 @@ class AudioIO {
       if (_keepAlive != null) _feedSilenceIfLow();
     });
     _playerReady = true;
+    await _applyRoute();
   }
 
   /// Takes the audio session back after the system had it (phone call, Siri,
@@ -170,9 +176,18 @@ class AudioIO {
   /// A full-duplex call with echo cancellation is running (see [startMic]).
   bool _duplex = false;
 
+  /// Called when the output was switched outside the app (the speaker button
+  /// on the iOS call screen), so the in-app button and the setting follow.
+  void Function(bool speaker)? onSpeakerChanged;
+
+  /// When the app itself last switched the output; overrides reported shortly
+  /// after are its own and are not taken as a choice from outside.
+  DateTime _ownSwitch = DateTime.fromMillisecondsSinceEpoch(0);
+
   /// Switches between loudspeaker and earpiece at once (also mid-call).
   Future<void> setSpeaker(bool on) async {
     speaker = on;
+    _ownSwitch = DateTime.now();
     if (!_playerReady || _session == null) return;
     try {
       await _session!.configure(_config());
@@ -181,7 +196,49 @@ class AudioIO {
   }
 
   bool _routing = false;
-  String? _androidRoute;
+  AndroidRoute? _androidRoute;
+
+  /// iOS: the route was overridden. If that was not the app itself (the
+  /// speaker button on the system call screen), take the new output as the
+  /// choice.
+  Future<void> _followOverride() async {
+    if (_session == null || DateTime.now().difference(_ownSwitch) < const Duration(seconds: 2)) return;
+    try {
+      final outputs = (await AVAudioSession().currentRoute).outputs.map((o) => o.portType).toList();
+      final now = iosSpeakerOf(outputs);
+      if (now == null || now == speaker) return;
+      speaker = now;
+      _ownSwitch = DateTime.now();
+      // defaultToSpeaker follows, so the next category change keeps the output.
+      await _session!.configure(_config());
+      onSpeakerChanged?.call(now);
+    } catch (_) {}
+  }
+
+  /// Android plays as media audio, at media volume, except on the earpiece:
+  /// Android only routes voice-call audio there. Switching rebuilds the
+  /// player, which drops what is queued (a few tens of milliseconds).
+  bool _androidVoiceCall = false;
+  bool _rebuilding = false;
+
+  Future<void> _androidPlayer({required bool voiceCall}) async {
+    if (voiceCall == _androidVoiceCall || !_playerReady) return;
+    _rebuilding = true;
+    try {
+      await FlutterPcmSound.setup(sampleRate: _outRate, channelCount: 1, androidVoiceCall: voiceCall);
+      _androidVoiceCall = voiceCall;
+    } catch (_) {
+      // Keep a working player: back to the one that played before, and the
+      // route is worked out again at the next change.
+      _androidRoute = null;
+      try {
+        await FlutterPcmSound.setup(sampleRate: _outRate, channelCount: 1, androidVoiceCall: _androidVoiceCall);
+      } catch (_) {}
+    } finally {
+      _rebuilding = false;
+      _queue.sync(0);
+    }
+  }
 
   /// Puts the output where [speaker] says, unless a headset is connected.
   Future<void> _applyRoute() async {
@@ -192,26 +249,30 @@ class AudioIO {
         final av = AVAudioSession();
         final outputs = (await av.currentRoute).outputs.map((o) => o.portType).toList();
         final o = iosOverride(speaker: speaker, outputs: outputs);
-        if (o != null) await av.overrideOutputAudioPort(o);
+        if (o != null) {
+          _ownSwitch = DateTime.now();
+          await av.overrideOutputAudioPort(o);
+        }
       } else if (defaultTargetPlatform == TargetPlatform.android) {
         final am = AndroidAudioManager();
         final devices = await am.getDevices(AndroidGetAudioDevicesFlags.outputs);
-        final headset = devices.any((d) => isHeadset(d.type));
-        final want = headset ? 'headset' : (speaker ? 'speaker' : 'earpiece');
+        final route = androidRoute(headset: devices.any((d) => isHeadset(d.type)), speaker: speaker);
         // Same as last time: nothing to do (each call can glitch the output).
-        if (want == _androidRoute) return;
-        _androidRoute = want;
-        if (headset) {
-          await am.setMode(AndroidAudioHardwareMode.normal);
-          await am.setSpeakerphoneOn(false);
-        } else if (speaker) {
-          await am.setMode(AndroidAudioHardwareMode.normal);
-          await am.setSpeakerphoneOn(true);
-        } else {
-          // Earpiece: communication mode with the speakerphone off.
-          await am.setMode(AndroidAudioHardwareMode.inCommunication);
-          await am.setSpeakerphoneOn(false);
-        }
+        if (route == _androidRoute) return;
+        _androidRoute = route;
+        await am.setMode(route.mode);
+        // Android 12+: the earpiece is chosen as the communication device;
+        // older versions take the speakerphone switch alone.
+        try {
+          if (route == AndroidRoute.earpiece) {
+            final ear = (await am.getAvailableCommunicationDevices()).where((d) => d.type == AndroidAudioDeviceType.builtInEarpiece);
+            if (ear.isNotEmpty) await am.setCommunicationDevice(ear.first);
+          } else {
+            await am.clearCommunicationDevice();
+          }
+        } catch (_) {}
+        await am.setSpeakerphoneOn(route == AndroidRoute.speaker);
+        await _androidPlayer(voiceCall: route.voiceCallPlayback);
       }
     } catch (_) {
       // Routing is best effort; audio keeps playing on the current output.
@@ -315,6 +376,7 @@ class AudioIO {
   final _queue = PlayoutQueue(sampleRate);
 
   void _feed(Int16List pcm) {
+    if (_rebuilding) return;
     _queue.fed(pcm.length);
     final up = _up;
     if (up != null) pcm = up.process(pcm);
@@ -423,6 +485,34 @@ AVAudioSessionPortOverride? iosOverride({required bool speaker, required List<AV
   if (!speaker && outputs.contains(AVAudioSessionPort.builtInSpeaker)) return AVAudioSessionPortOverride.none;
   return null;
 }
+
+/// iOS: which built-in output plays, `true` for the loudspeaker, `false` for
+/// the receiver (earpiece), `null` for a headset or another external device.
+bool? iosSpeakerOf(List<AVAudioSessionPort?> outputs) {
+  if (outputs.any(_externalPorts.contains)) return null;
+  if (outputs.contains(AVAudioSessionPort.builtInSpeaker)) return true;
+  if (outputs.contains(AVAudioSessionPort.builtInReceiver)) return false;
+  return null;
+}
+
+/// Android output routes. The earpiece needs communication mode *and*
+/// voice-call playback: Android plays media audio (`USAGE_MEDIA`) on the
+/// loudspeaker or a headset only, whatever the speakerphone switch or the
+/// communication device say. Loudspeaker and headset stay media audio, at
+/// media volume, as before.
+enum AndroidRoute {
+  headset(AndroidAudioHardwareMode.normal, false),
+  speaker(AndroidAudioHardwareMode.normal, false),
+  earpiece(AndroidAudioHardwareMode.inCommunication, true);
+
+  const AndroidRoute(this.mode, this.voiceCallPlayback);
+  final AndroidAudioHardwareMode mode;
+  final bool voiceCallPlayback;
+}
+
+/// The Android route for the choice; a connected headset always wins.
+AndroidRoute androidRoute({required bool headset, required bool speaker}) =>
+    headset ? AndroidRoute.headset : (speaker ? AndroidRoute.speaker : AndroidRoute.earpiece);
 
 /// Android device types that count as a headset (they win over the choice).
 bool isHeadset(AndroidAudioDeviceType t) => const {

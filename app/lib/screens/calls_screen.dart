@@ -286,6 +286,7 @@ class _ActiveCallState extends State<_ActiveCall> {
 
     final connected = call.state == 'connected';
     final pad = connected && call.duplex && _keypad;
+    final speakerOn = context.select<TerminalModel, bool>((m) => m.settings.speakerOut);
 
     return SafeArea(
       child: LayoutBuilder(builder: (context, box) {
@@ -334,6 +335,18 @@ class _ActiveCallState extends State<_ActiveCall> {
                   icon: CupertinoIcons.circle_grid_3x3_fill,
                   label: 'Keypad',
                   onTap: () => setState(() => _keypad = !_keypad),
+                ),
+              // Loudspeaker / earpiece, in every call once it is not ringing here.
+              if (call.state != 'ringing')
+                _RoundButton(
+                  size: button - 8,
+                  color: speakerOn ? scheme.primary : scheme.surfaceContainerHighest,
+                  icon: speakerOn ? CupertinoIcons.speaker_3_fill : CupertinoIcons.phone_fill,
+                  label: tr(speakerOn ? 'Loudspeaker on. Tap for earpiece' : 'Earpiece. Tap for loudspeaker'),
+                  onTap: () {
+                    Haptics.select();
+                    m.setSpeakerOut(!speakerOn);
+                  },
                 ),
               if (call.state == 'ringing')
                 _RoundButton(size: button, color: Tokens.online, icon: CupertinoIcons.phone_fill, label: 'Answer', onTap: () {

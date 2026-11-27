@@ -51,6 +51,28 @@ void main() {
     expect(ear.contains(AVAudioSessionCategoryOptions.defaultToSpeaker), isFalse);
   });
 
+  test('Android earpiece: call mode and voice-call playback (media audio never reaches the earpiece)', () {
+    final ear = androidRoute(headset: false, speaker: false);
+    expect(ear, AndroidRoute.earpiece);
+    expect(ear.mode, AndroidAudioHardwareMode.inCommunication);
+    expect(ear.voiceCallPlayback, isTrue);
+  });
+
+  test('Android loudspeaker and headset stay media audio in normal mode', () {
+    for (final r in [androidRoute(headset: false, speaker: true), androidRoute(headset: true, speaker: true), androidRoute(headset: true, speaker: false)]) {
+      expect(r.mode, AndroidAudioHardwareMode.normal, reason: '$r');
+      expect(r.voiceCallPlayback, isFalse, reason: '$r');
+    }
+    expect(androidRoute(headset: true, speaker: false), AndroidRoute.headset);
+  });
+
+  test('iOS: the output switched on the system call screen is read back as the choice', () {
+    expect(iosSpeakerOf([AVAudioSessionPort.builtInSpeaker]), isTrue);
+    expect(iosSpeakerOf([AVAudioSessionPort.builtInReceiver]), isFalse);
+    expect(iosSpeakerOf([AVAudioSessionPort.bluetoothHfp]), isNull);
+    expect(iosSpeakerOf([]), isNull);
+  });
+
   test('the choice is saved, loudspeaker by default', () async {
     SharedPreferences.setMockInitialValues({});
     Settings.secrets = _Secrets();

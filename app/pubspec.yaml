@@ -28,7 +28,9 @@ dependencies:
   permission_handler: ^11.3.1
   # Audio: 8 kHz mono PCM16 in/out (see lib/services/audio_io.dart)
   record: ^6.0.0
-  flutter_pcm_sound: ^3.1.0
+  # Vendored 3.3.3 with Android voice-call playback (earpiece), see its README
+  flutter_pcm_sound:
+    path: packages/flutter_pcm_sound
   audio_session: ^0.1.21
   # LIP
   geolocator: ^13.0.1

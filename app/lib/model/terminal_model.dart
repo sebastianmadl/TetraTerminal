@@ -321,6 +321,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     await loadMessages();
     unawaited(contacts.startRadioId());
     audio.speaker = settings.speakerOut;
+    // Switched on the iOS call screen: the in-app buttons and the setting follow.
+    audio.onSpeakerChanged = (on) {
+      settings.speakerOut = on;
+      notifyListeners();
+      unawaited(settings.save());
+    };
     audio.captureTx = settings.txCapture;
     audio.noiseSuppression = settings.noiseSuppression;
     audio.rxLevel = settings.rxLevel;

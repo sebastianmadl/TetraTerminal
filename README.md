@@ -163,7 +163,7 @@ speexdsp is vendored unmodified in `tetra_core/third_party/speexdsp`
 |---|---|---|
 | Level | none | level control to a target (-21 dBov by default) with 30 ms look-ahead, a maximum level and an optional boost |
 | Sample rate | 8 kHz handed to the system | on iOS converted to 48 kHz in the app (polyphase windowed-sinc, cut-off 3.4 kHz) |
-| Output | call volume | media volume for group calls and PTT; the voice-call mode only in full-duplex calls. Loudspeaker / earpiece switch |
+| Output | call volume | media volume for group calls and PTT; the voice-call mode only in full-duplex calls. Loudspeaker / earpiece switch on the Radio tab and on the call screen. On Android the earpiece plays as voice-call audio through a vendored `flutter_pcm_sound` (`app/packages/flutter_pcm_sound`), since Android never routes media audio to the earpiece |
 
 "Record my transmissions" under Settings > Audio saves the microphone signal
 and the encoder input as WAV, to check the chain.
