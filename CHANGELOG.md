@@ -9,7 +9,12 @@ chain, PoC radio support, phone-style calls and the messages rework.
 Entries marked *(not yet verified on a device)* compile and pass the automated
 tests but still wait for a test on real hardware.
 
-## Unreleased
+## 1.6.3 (unreleased)
+
+- iOS bundle id is now `org.tmoaustria.tetraterminal` (was
+  `org.tetra.terminal.tetraTerminal`). iOS installs it as a new app beside
+  the old one: connections, contacts and messages have to be set up again,
+  then the old app can be deleted. Android keeps its id and updates as before.
 
 - README: section "Voice codec and audio chain" lists what was changed in
   the ACELP codec and in the audio path around it compared with the

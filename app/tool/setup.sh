@@ -93,6 +93,25 @@ elif [ "$(uname)" = Darwin ]; then
   echo "warning: xcodeproj gem not found, the iOS ring tones are not bundled"
 fi
 
+# iOS bundle id. Android keeps its applicationId (org.tetra.terminal.tetra_terminal
+# from --org above): a new one would install as a second app beside the old.
+IOS_BUNDLE_ID=org.tmoaustria.tetraterminal
+python3 - ios/Runner.xcodeproj/project.pbxproj "$IOS_BUNDLE_ID" <<'PY'
+import re, sys
+p, app = sys.argv[1], sys.argv[2]
+s = open(p).read()
+def fix(m):
+    value = m.group(1)
+    for suffix in ('.RunnerTests', '.TetraWidgets'):
+        if value.endswith(suffix):
+            return f'PRODUCT_BUNDLE_IDENTIFIER = {app}{suffix};'
+    return f'PRODUCT_BUNDLE_IDENTIFIER = {app};'
+s, n = re.subn(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);', fix, s)
+if n == 0:
+    sys.exit('project.pbxproj: no PRODUCT_BUNDLE_IDENTIFIER found')
+open(p, 'w').write(s)
+PY
+
 PLIST=ios/Runner/Info.plist
 # Edit the top-level dict only (a sed on "<dict>" would hit nested dicts too).
 python3 - "$PLIST" <<'PY'

@@ -7,7 +7,7 @@ import ActivityKit
 enum TetraShared {
   /// App Group for the home screen widget: "group." + the app's bundle id.
   static var appGroup: String {
-    let app = Bundle.main.bundleIdentifier ?? "org.tetra.terminal.tetraTerminal"
+    let app = Bundle.main.bundleIdentifier ?? "org.tmoaustria.tetraterminal"
     // The widget extension's id is the app's id + ".TetraWidgets".
     let base = app.hasSuffix(".TetraWidgets") ? String(app.dropLast(".TetraWidgets".count)) : app
     return "group.\(base)"

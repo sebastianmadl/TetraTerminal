@@ -2,7 +2,7 @@
 """Prints the text of a GitHub Release: which file is for which device, how
 to install it, and the section of CHANGELOG.md for the version.
 
-    python3 app/tool/release_notes.py 1.6.2 > notes.md
+    python3 app/tool/release_notes.py 1.6.3 > notes.md
 """
 import pathlib
 import re
