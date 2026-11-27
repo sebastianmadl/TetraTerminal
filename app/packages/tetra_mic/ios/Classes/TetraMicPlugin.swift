@@ -4,7 +4,13 @@ import Flutter
 /// Microphone capture with AVAudioEngine.
 ///
 /// Channel "tetra/mic": hasPermission, start {sampleRate, voiceProcessing},
-/// stop. Event channel "tetra/mic/pcm": mono PCM16 chunks at sampleRate.
+/// play {pcm, sampleRate}, stop. Event channel "tetra/mic/pcm": mono PCM16
+/// chunks at sampleRate.
+///
+/// With voice processing (full-duplex calls) the received audio is played
+/// through the same engine ("play"): the echo canceller of the voice
+/// processing unit only removes what goes out through that unit, so audio
+/// played by another output unit came straight back into the microphone.
 ///
 /// The tap and the converter are rebuilt whenever the engine reports a
 /// configuration change (route or output override, hardware sample rate,
@@ -24,6 +30,9 @@ public class TetraMicPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   /// Set from the audio thread when a buffer's format no longer matches.
   private var stale = false
   private var restartPending = false
+  /// Plays the received audio during full-duplex calls (voice processing only).
+  private var player: AVAudioPlayerNode?
+  private var playFormat: AVAudioFormat?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = TetraMicPlugin()
@@ -66,6 +75,12 @@ public class TetraMicPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         stop()
         result(FlutterError(code: "mic", message: "Microphone start failed: \(error.localizedDescription)", details: nil))
       }
+    case "play":
+      let a = call.arguments as? [String: Any] ?? [:]
+      if let pcm = a["pcm"] as? FlutterStandardTypedData {
+        play(pcm.data, sampleRate: (a["sampleRate"] as? NSNumber)?.doubleValue ?? 48000)
+      }
+      result(nil)
     case "stop":
       stop()
       result(nil)
@@ -92,8 +107,15 @@ public class TetraMicPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       try? engine.inputNode.setVoiceProcessingEnabled(true)
     }
     try installTap()
+    if voiceProcessing {
+      let node = AVAudioPlayerNode()
+      engine.attach(node)
+      player = node
+      connectPlayer()
+    }
     engine.prepare()
     try engine.start()
+    player?.play()
     let center = NotificationCenter.default
     observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
       self?.restart()
@@ -130,11 +152,42 @@ public class TetraMicPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     engine.stop()
     do {
       try installTap()
+      connectPlayer()
       engine.prepare()
       try engine.start()
+      player?.play()
     } catch {
       sink?(FlutterError(code: "mic", message: "Microphone restart failed: \(error.localizedDescription)", details: nil))
     }
+  }
+
+  /// Connects the player to the mixer (again after a configuration change).
+  private func connectPlayer() {
+    guard let engine = engine, let node = player else { return }
+    let rate = playFormat?.sampleRate ?? 48000
+    guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else { return }
+    playFormat = format
+    engine.disconnectNodeOutput(node)
+    engine.connect(node, to: engine.mainMixerNode, format: format)
+  }
+
+  /// Queues mono PCM16 for playback behind what is already queued.
+  private func play(_ data: Data, sampleRate: Double) {
+    guard let engine = engine, let node = player else { return }
+    if playFormat?.sampleRate != sampleRate {
+      playFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
+      connectPlayer()
+    }
+    guard let format = playFormat else { return }
+    let frames = data.count / MemoryLayout<Int16>.size
+    guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
+          let out = buffer.floatChannelData?[0] else { return }
+    buffer.frameLength = AVAudioFrameCount(frames)
+    data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+      for i in 0..<frames { out[i] = Float(raw.loadUnaligned(fromByteOffset: i * 2, as: Int16.self)) / 32768 }
+    }
+    node.scheduleBuffer(buffer, completionHandler: nil)
+    if engine.isRunning && !node.isPlaying { node.play() }
   }
 
   /// Audio thread: convert one buffer and hand it to Flutter.
@@ -174,12 +227,16 @@ public class TetraMicPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     observers = []
     if let engine = engine {
       engine.inputNode.removeTap(onBus: 0)
+      player?.stop()
       engine.stop()
+      if let node = player { engine.detach(node) }
       if voiceProcessing {
         try? engine.inputNode.setVoiceProcessingEnabled(false)
       }
     }
     engine = nil
+    player = nil
+    playFormat = nil
     converter = nil
     outFormat = nil
   }

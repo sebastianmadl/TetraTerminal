@@ -157,6 +157,10 @@ class AudioIO {
     await _applyRoute();
   }
 
+  /// Tests: the player counts as set up without the platform session.
+  @visibleForTesting
+  void debugPlayerReady() => _playerReady = true;
+
   /// Takes the audio session back after the system had it (phone call, Siri,
   /// the system call screen of an incoming private call).
   Future<void> resume() async {
@@ -256,22 +260,23 @@ class AudioIO {
       } else if (defaultTargetPlatform == TargetPlatform.android) {
         final am = AndroidAudioManager();
         final devices = await am.getDevices(AndroidGetAudioDevicesFlags.outputs);
-        final route = androidRoute(headset: devices.any((d) => isHeadset(d.type)), speaker: speaker);
+        final route = androidRoute(headset: devices.any((d) => isHeadset(d.type)), speaker: speaker, duplex: _duplex);
         // Same as last time: nothing to do (each call can glitch the output).
         if (route == _androidRoute) return;
         _androidRoute = route;
         await am.setMode(route.mode);
-        // Android 12+: the earpiece is chosen as the communication device;
-        // older versions take the speakerphone switch alone.
+        // Android 12+: the output of voice-call audio is chosen as the
+        // communication device; older versions take the speakerphone switch.
         try {
-          if (route == AndroidRoute.earpiece) {
-            final ear = (await am.getAvailableCommunicationDevices()).where((d) => d.type == AndroidAudioDeviceType.builtInEarpiece);
-            if (ear.isNotEmpty) await am.setCommunicationDevice(ear.first);
+          final want = route.device;
+          final match = want == null ? const <AndroidAudioDeviceInfo>[] : (await am.getAvailableCommunicationDevices()).where((d) => want(d.type));
+          if (match.isNotEmpty) {
+            await am.setCommunicationDevice(match.first);
           } else {
             await am.clearCommunicationDevice();
           }
         } catch (_) {}
-        await am.setSpeakerphoneOn(route == AndroidRoute.speaker);
+        await am.setSpeakerphoneOn(route.speakerphone);
         await _androidPlayer(voiceCall: route.voiceCallPlayback);
       }
     } catch (_) {
@@ -299,6 +304,8 @@ class AudioIO {
       throw StateError('Microphone permission denied');
     }
     await _setDuplex(voiceProcessing);
+    // Android: call mode is set before the recorder opens its voice source.
+    await _applyRoute();
     final capture = _capture = captureTx ? TxCapture() : null;
     void onBytes(Uint8List bytes) {
       // Chunks can split a sample; keep any odd trailing byte for next time.
@@ -323,6 +330,7 @@ class AudioIO {
       // which the ACELP encoder turns into a loud tone.
       try {
         _micSub = await TetraMic.start(sampleRate: _micRate, voiceProcessing: voiceProcessing, onData: onBytes);
+        _enginePlays = voiceProcessing;
       } catch (_) {
         await _setDuplex(false);
         rethrow;
@@ -335,10 +343,13 @@ class AudioIO {
         echoCancel: voiceProcessing,
         noiseSuppress: voiceProcessing,
         autoGain: voiceProcessing,
-        androidConfig: const AndroidRecordConfig(
-          // Plain mic: on Samsung (and others) voiceCommunication yields near-silent input
-          // unless the whole system is in call mode.
-          audioSource: AndroidAudioSource.mic,
+        androidConfig: AndroidRecordConfig(
+          // Full duplex: the voice-call source, which carries the platform
+          // echo canceller (call mode and voice-call playback are already set,
+          // see AndroidRoute). Otherwise the plain mic: on Samsung (and others)
+          // voiceCommunication yields near-silent input unless the whole
+          // system is in call mode.
+          audioSource: voiceProcessing ? AndroidAudioSource.voiceCommunication : AndroidAudioSource.mic,
         ),
       ));
       _micSub = stream.listen(onBytes);
@@ -347,6 +358,7 @@ class AudioIO {
   }
 
   Future<void> stopMic() async {
+    _enginePlays = false;
     await _micSub?.cancel();
     final wasRunning = _micSub != null;
     _micSub = null;
@@ -375,11 +387,27 @@ class AudioIO {
 
   final _queue = PlayoutQueue(sampleRate);
 
-  void _feed(Int16List pcm) {
+  /// iOS full-duplex call: the received audio plays through the capture
+  /// engine, whose voice processing then cancels it from the microphone (it
+  /// only cancels what goes out through itself). See [TetraMic.play].
+  bool _enginePlays = false;
+
+  void _feed(Int16List pcm, {bool keepAlive = false}) {
     if (_rebuilding) return;
+    if (keepAlive && _enginePlays) {
+      // The silence keeps the normal player running for after the call (iOS
+      // cannot start it again in the background); no upsampler needed.
+      _queue.fed(pcm.length);
+      FlutterPcmSound.feed(PcmArrayInt16.fromList(Int16List(pcm.length * (_up?.factor ?? 1))));
+      return;
+    }
     _queue.fed(pcm.length);
     final up = _up;
     if (up != null) pcm = up.process(pcm);
+    if (_enginePlays) {
+      unawaited(TetraMic.play(pcm.buffer.asUint8List(pcm.offsetInBytes, pcm.lengthInBytes), sampleRate: _outRate).catchError((Object _) {}));
+      return;
+    }
     FlutterPcmSound.feed(PcmArrayInt16.fromList(pcm));
   }
 
@@ -405,7 +433,7 @@ class AudioIO {
     if (!_playerReady) return;
     if (DateTime.now().difference(_lastPlay) < const Duration(milliseconds: 300)) return; // a call is playing
     final n = _queue.silenceToFeed();
-    if (n > 0) _feed(Int16List(n));
+    if (n > 0) _feed(Int16List(n), keepAlive: true);
   }
 
   /// Background operation on iOS: the app may keep running in the background
@@ -498,21 +526,37 @@ bool? iosSpeakerOf(List<AVAudioSessionPort?> outputs) {
 /// Android output routes. The earpiece needs communication mode *and*
 /// voice-call playback: Android plays media audio (`USAGE_MEDIA`) on the
 /// loudspeaker or a headset only, whatever the speakerphone switch or the
-/// communication device say. Loudspeaker and headset stay media audio, at
+/// communication device say. A full-duplex call runs entirely as a voice
+/// call (communication mode, voice-call playback, voice-call mic source),
+/// since the platform echo canceller only takes voice-call audio as its
+/// reference; with media playback the loudspeaker came back into the mic.
+/// Group calls and PTT on the loudspeaker or a headset stay media audio, at
 /// media volume, as before.
 enum AndroidRoute {
-  headset(AndroidAudioHardwareMode.normal, false),
-  speaker(AndroidAudioHardwareMode.normal, false),
-  earpiece(AndroidAudioHardwareMode.inCommunication, true);
+  headset(AndroidAudioHardwareMode.normal, false, false, null),
+  speaker(AndroidAudioHardwareMode.normal, false, true, null),
+  earpiece(AndroidAudioHardwareMode.inCommunication, true, false, _isEarpiece),
+  callHeadset(AndroidAudioHardwareMode.inCommunication, true, false, isHeadset),
+  callSpeaker(AndroidAudioHardwareMode.inCommunication, true, true, _isSpeaker);
 
-  const AndroidRoute(this.mode, this.voiceCallPlayback);
+  const AndroidRoute(this.mode, this.voiceCallPlayback, this.speakerphone, this.device);
   final AndroidAudioHardwareMode mode;
   final bool voiceCallPlayback;
+  final bool speakerphone;
+
+  /// The communication device to pick (Android 12+), `null` for none.
+  final bool Function(AndroidAudioDeviceType)? device;
 }
 
+bool _isEarpiece(AndroidAudioDeviceType t) => t == AndroidAudioDeviceType.builtInEarpiece;
+bool _isSpeaker(AndroidAudioDeviceType t) => t == AndroidAudioDeviceType.builtInSpeaker;
+
 /// The Android route for the choice; a connected headset always wins.
-AndroidRoute androidRoute({required bool headset, required bool speaker}) =>
-    headset ? AndroidRoute.headset : (speaker ? AndroidRoute.speaker : AndroidRoute.earpiece);
+AndroidRoute androidRoute({required bool headset, required bool speaker, bool duplex = false}) {
+  if (headset) return duplex ? AndroidRoute.callHeadset : AndroidRoute.headset;
+  if (!speaker) return AndroidRoute.earpiece;
+  return duplex ? AndroidRoute.callSpeaker : AndroidRoute.speaker;
+}
 
 /// Android device types that count as a headset (they win over the choice).
 bool isHeadset(AndroidAudioDeviceType t) => const {

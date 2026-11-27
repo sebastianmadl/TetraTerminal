@@ -37,5 +37,11 @@ class TetraMic {
     return sub;
   }
 
+  /// Plays mono PCM16 through the capture engine, so the echo canceller of a
+  /// voice-processing capture removes it from the microphone signal. Only
+  /// while capture runs with `voiceProcessing`; otherwise it is dropped.
+  static Future<void> play(Uint8List pcm, {required int sampleRate}) =>
+      _methods.invokeMethod<void>('play', {'pcm': pcm, 'sampleRate': sampleRate});
+
   static Future<void> stop() => _methods.invokeMethod<void>('stop');
 }

@@ -26,6 +26,17 @@ tests but still wait for a test on real hardware.
   loudspeaker and headset stay at media volume as before. The player is a
   vendored copy of `flutter_pcm_sound` 3.3.3 with this one addition.
   *(not yet verified on a device)*
+- Echo and feedback in full-duplex calls: the other party heard
+  themselves, loud, through the loudspeaker. The echo canceller never saw
+  the received audio. On iOS the voice processing only cancels what plays
+  through its own audio unit, and the received audio played through a
+  separate one: during a full-duplex call it now plays through the
+  microphone's engine. On Android the platform echo canceller only takes
+  voice-call audio as its reference: a full-duplex call now runs entirely as
+  a voice call (call mode, voice-call playback, voice-call microphone
+  source), on the loudspeaker as well, at call volume like a phone's
+  speakerphone. Group calls and PTT are unchanged. *(not yet verified on a
+  device)*
 - iOS: switching to the loudspeaker or the receiver on the system call
   screen is kept and the app's button follows, instead of the app switching
   back at the next audio change. *(not yet verified on a device)*

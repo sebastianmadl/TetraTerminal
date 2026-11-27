@@ -72,6 +72,38 @@ void main() {
     await audio.stopMic();
   });
 
+  test('iOS full-duplex call: received audio plays through the mic module, so its echo canceller removes it', () async {
+    final pcmCalls = <String>[];
+    const pcm = MethodChannel('flutter_pcm_sound/methods');
+    messenger.setMockMethodCallHandler(pcm, (c) async => pcmCalls.add(c.method));
+    addTearDown(() => messenger.setMockMethodCallHandler(pcm, null));
+    // The platform audio session cannot run in a test; the player is ready.
+    final audio = AudioIO()..debugPlayerReady();
+    final frame = Int16List.fromList(List.generate(480, (i) => (i % 40) * 200));
+
+    await audio.startMic((_) {}, voiceProcessing: true);
+    pcmCalls.clear();
+    audio.play(frame);
+    await pumpEventQueue();
+    expect(calls, contains('play'));
+    expect(pcmCalls, isNot(contains('feed')));
+
+    await audio.stopMic();
+    calls.clear();
+    audio.play(frame);
+    await pumpEventQueue();
+    expect(calls, isNot(contains('play')), reason: 'group calls and PTT play through the normal player');
+    expect(pcmCalls, contains('feed'));
+
+    // Half duplex (no voice processing): the normal player as well.
+    await audio.startMic((_) {});
+    calls.clear();
+    audio.play(frame);
+    await pumpEventQueue();
+    expect(calls, isNot(contains('play')));
+    await audio.stopMic();
+  });
+
   test('a hot iOS microphone reaches the encoder at the nominal level, and is captured on request', () async {
     final audio = AudioIO()..captureTx = true;
     TxCapture? captured;
