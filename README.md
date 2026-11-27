@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/ios.yml"><img src="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/ios.yml/badge.svg" alt="iOS build"></a>
-  <a href="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/android.yml"><img src="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/android.yml/badge.svg" alt="Android build"></a>
+  <a href="https://github.com/sebastianmadl/TetraTerminal/actions/workflows/ios.yml"><img src="https://github.com/sebastianmadl/TetraTerminal/actions/workflows/ios.yml/badge.svg" alt="iOS build"></a>
+  <a href="https://github.com/sebastianmadl/TetraTerminal/actions/workflows/android.yml"><img src="https://github.com/sebastianmadl/TetraTerminal/actions/workflows/android.yml/badge.svg" alt="Android build"></a>
 </p>
 
 <p align="center">
@@ -164,7 +164,7 @@ flutter run            # with an Android phone attached
 ### Download
 
 Finished builds are on the
-[Releases page](https://github.com/sebastianmadl/tetra-client-ios/releases),
+[Releases page](https://github.com/sebastianmadl/TetraTerminal/releases),
 with a note on which file is for which device. The iPhone build is unsigned
 and has to be sideloaded.
 

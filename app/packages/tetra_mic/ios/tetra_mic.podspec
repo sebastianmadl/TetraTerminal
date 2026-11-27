@@ -3,7 +3,7 @@ Pod::Spec.new do |s|
   s.version          = '1.0.0'
   s.summary          = 'Microphone capture for TETRA Terminal.'
   s.description      = 'AVAudioEngine microphone capture that rebuilds itself on audio hardware changes.'
-  s.homepage         = 'https://github.com/sebastianmadl/tetra-client-ios'
+  s.homepage         = 'https://github.com/sebastianmadl/TetraTerminal'
   s.license          = { :type => 'Proprietary' }
   s.author           = { 'TETRA Terminal' => 'none' }
   s.source           = { :path => '.' }

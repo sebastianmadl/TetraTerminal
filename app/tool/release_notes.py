@@ -57,7 +57,7 @@ def main() -> None:
     if changes:
         out += f"\n## What is new in {version}\n\n{changes}\n"
     out += "\nAll versions: [CHANGELOG.md](https://github.com/{repo}/blob/main/CHANGELOG.md)\n".replace(
-        "{repo}", __import__("os").environ.get("GITHUB_REPOSITORY", "sebastianmadl/tetra-client-ios"))
+        "{repo}", __import__("os").environ.get("GITHUB_REPOSITORY", "sebastianmadl/TetraTerminal"))
     sys.stdout.write(out)
 
 

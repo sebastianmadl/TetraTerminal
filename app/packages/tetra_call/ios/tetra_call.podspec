@@ -3,7 +3,7 @@ Pod::Spec.new do |s|
   s.version          = '1.0.0'
   s.summary          = 'Incoming calls for TETRA Terminal.'
   s.description      = 'Shows incoming private calls on the system call screen (CallKit).'
-  s.homepage         = 'https://github.com/sebastianmadl/tetra-client-ios'
+  s.homepage         = 'https://github.com/sebastianmadl/TetraTerminal'
   s.license          = { :type => 'Proprietary' }
   s.author           = { 'TETRA Terminal' => 'none' }
   s.source           = { :path => '.' }
