@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:poc_ptt/poc_ptt.dart';
 import 'package:provider/provider.dart';
 
@@ -124,7 +126,17 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _tab = i);
     }
 
-    return Scaffold(
+    // Android: Back on the main screen does not close the app (a radio has to
+    // stay reachable); it only leaves the screen. "Quit app" is in the menu of
+    // the Online pill.
+    final keepRunning = defaultTargetPlatform == TargetPlatform.android;
+    return PopScope(
+      canPop: !keepRunning,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !keepRunning) return;
+        if (!await m.callAlert.toBackground()) await SystemNavigator.pop();
+      },
+      child: Scaffold(
       // iOS: content runs beneath the floating glass tab bar.
       extendBody: isApple(context),
       body: IndexedStack(index: tab, children: [
@@ -169,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 }
@@ -191,16 +204,34 @@ class LinkPill extends StatelessWidget {
       label: '$label. ${tr(m.link == LinkState.offline ? 'Tap to connect' : 'Tap to disconnect')}',
       child: GestureDetector(
         onTap: () async {
+          final android = defaultTargetPlatform == TargetPlatform.android;
+          Future<void> connect() async {
+            if (!m.settings.isConfigured) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Tx('Fill in server, username and ISSI in Settings first')));
+            } else {
+              await m.connect();
+            }
+          }
+
           if (m.link != LinkState.offline) {
-            final go = await showActions<bool>(context,
-                title: 'Disconnect from the server?', message: 'You will not hear calls until you connect again.', actions: const [
-              SheetAction('Disconnect', true, destructive: true),
+            final go = await showActions<String>(context,
+                title: 'Disconnect from the server?', message: 'You will not hear calls until you connect again.', actions: [
+              const SheetAction('Disconnect', 'disconnect', destructive: true),
+              // Android: Back keeps the app running, this is the way out.
+              if (android) const SheetAction('Quit app', 'quit', destructive: true),
             ]);
-            if (go == true) await m.goOffline();
-          } else if (!m.settings.isConfigured) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Tx('Fill in server, username and ISSI in Settings first')));
+            if (go == 'disconnect') await m.goOffline();
+            if (go == 'quit') await m.quitApp();
+          } else if (android) {
+            final go = await showActions<String>(context, title: 'Offline', actions: const [
+              SheetAction('Connect', 'connect'),
+              SheetAction('Quit app', 'quit', destructive: true),
+            ]);
+            if (!context.mounted) return;
+            if (go == 'connect') await connect();
+            if (go == 'quit') await m.quitApp();
           } else {
-            await m.connect();
+            await connect();
           }
         },
         child: Container(

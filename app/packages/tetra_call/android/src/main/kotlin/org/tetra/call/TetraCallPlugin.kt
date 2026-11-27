@@ -29,7 +29,8 @@ import io.flutter.plugin.common.PluginRegistry
  * screen shows the call. An incoming text message plays the notification
  * tone, with a notification when the app is not on screen.
  *
- * App -> native: incoming, connected, ended, message, pickRingtone.
+ * App -> native: incoming, connected, ended, message, pickRingtone,
+ * toBackground, quit.
  * Native -> app: answer, end.
  */
 class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, PluginRegistry.NewIntentListener,
@@ -96,6 +97,14 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                 result.success(null)
             }
             "messagePermission" -> result.success(null)
+            // Back on the main screen: keep running, only leave the screen.
+            "toBackground" -> result.success(activity?.moveTaskToBack(true) ?: false)
+            // "Quit app": close the screen and drop the app from the recents.
+            "quit" -> {
+                stopRinging()
+                activity?.finishAndRemoveTask()
+                result.success(null)
+            }
             "pickRingtone" -> pickRingtone(call.argument<String>("current"), result)
             else -> result.notImplemented()
         }

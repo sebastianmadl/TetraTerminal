@@ -547,6 +547,15 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     await WakelockPlus.enable();
   }
 
+  /// Android "Quit app": disconnects, ends the background service and closes
+  /// the app. The only way out, since Back keeps it running.
+  Future<void> quitApp() async {
+    await goOffline();
+    await saveMessages();
+    await live.end();
+    await callAlert.quit();
+  }
+
   /// Disconnect by hand: stays offline until connected again.
   Future<void> goOffline() async {
     _wantOnline = false;

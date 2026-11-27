@@ -104,6 +104,13 @@ class CallAlert {
   /// iOS: asks once for the permission to show message notifications.
   Future<void> messagePermission() => _call<void>('messagePermission', null);
 
+  /// Android: leaves the app's screen but keeps the app running. False where
+  /// that is not possible.
+  Future<bool> toBackground() async => await _call<bool>('toBackground', null) ?? false;
+
+  /// Android: closes the app's screen and removes it from the recent apps.
+  Future<void> quit() => _call<void>('quit', null);
+
   /// The call was answered: stop ringing.
   Future<void> connected(String id) async {
     if (_shown != id) return;
