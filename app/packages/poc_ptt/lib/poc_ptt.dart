@@ -89,6 +89,18 @@ class PocPtt {
     await _m.invokeMethod('learn', {'on': on});
   }
 
+  /// Whether this build contains the background key service at all. The phone
+  /// build leaves it out, because Play Protect blocks sideloaded apps with an
+  /// Accessibility service.
+  static Future<bool> keyServiceAvailable() async {
+    if (!supported) return false;
+    try {
+      return await _m.invokeMethod<bool>('keyServiceAvailable') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Whether the background key service is switched on in Accessibility settings.
   static Future<bool> keyServiceEnabled() async {
     if (!supported) return false;

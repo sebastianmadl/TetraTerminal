@@ -73,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final s = context.read<TerminalModel>().settings;
     var enabled = false;
     try {
+      if (!await PocPtt.keyServiceAvailable()) return;
       enabled = await PocPtt.keyServiceEnabled();
     } catch (_) {}
     if (!mounted || !s.shouldAskKeyService(enabled: enabled)) return;

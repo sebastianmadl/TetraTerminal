@@ -82,6 +82,7 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
             "stop" -> { stop(); result.success(null) }
             "learn" -> { PocPttHub.learning = call.argument<Boolean>("on") ?: false; result.success(null) }
             "keyServiceEnabled" -> result.success(keyServiceEnabled())
+            "keyServiceAvailable" -> result.success(keyServiceAvailable())
             "lastSeen" -> result.success(PocPttHub.lastSeen)
             "speak" -> { speak(call.argument<String>("text") ?: ""); result.success(null) }
             "led" -> result.success(setLed(call.argument<String>("state") ?: "off"))
@@ -223,6 +224,14 @@ class PocPttPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandl
             ledUnavailable = true
             false
         }
+    }
+
+    /** False in the phone build, which ships without the Accessibility service. */
+    private fun keyServiceAvailable(): Boolean = try {
+        context.packageManager.getServiceInfo(ComponentName(context, PocPttKeyService::class.java), 0)
+        true
+    } catch (e: Throwable) {
+        false
     }
 
     private fun keyServiceEnabled(): Boolean {

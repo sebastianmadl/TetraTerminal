@@ -529,6 +529,8 @@ const german = <String, String>{
       'Bei PTT Bildschirm wecken und App öffnen',
   'On: keys also work with the app closed or the screen locked':
       'Ein: Tasten funktionieren auch bei geschlossener App oder gesperrtem Bildschirm',
+  'Not in this version. Install the "-poc" version of the app for keys with the screen locked':
+      'In dieser Version nicht enthalten. Für Tasten bei gesperrtem Bildschirm installiere die „-poc“-Version der App',
   'Off: keys only work while the app is open. Tap and switch on "TETRA Terminal PTT key" in Accessibility':
       'Aus: Tasten funktionieren nur bei offener App. Tippen und in den Bedienungshilfen „TETRA Terminal PTT key“ einschalten',
   'Last key seen':

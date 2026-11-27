@@ -617,18 +617,27 @@ class _HardwareSettingsState extends State<HardwareSettings> {
                   value: s.pocPttWake,
                   onChanged: (v) => set(() => s.pocPttWake = v),
                 ),
-                FutureBuilder<bool>(
-                  future: PocPtt.keyServiceEnabled(),
-                  builder: (context, snap) => Tile(
-                    title: 'Keys in the background',
-                    subtitle: snap.data == true
-                        ? 'On: keys also work with the app closed or the screen locked'
-                        : 'Off: keys only work while the app is open. Tap and switch on "TETRA Terminal PTT key" in Accessibility',
-                    onTap: () async {
-                      await PocPtt.openKeyServiceSettings();
-                      if (mounted) setState(() {});
-                    },
-                  ),
+                FutureBuilder<List<bool>>(
+                  future: Future.wait([PocPtt.keyServiceAvailable(), PocPtt.keyServiceEnabled()]),
+                  builder: (context, snap) {
+                    final available = snap.data?[0] ?? true, on = snap.data?[1] ?? false;
+                    if (!available) {
+                      return const Tile(
+                        title: 'Keys in the background',
+                        subtitle: 'Not in this version. Install the "-poc" version of the app for keys with the screen locked',
+                      );
+                    }
+                    return Tile(
+                      title: 'Keys in the background',
+                      subtitle: on
+                          ? 'On: keys also work with the app closed or the screen locked'
+                          : 'Off: keys only work while the app is open. Tap and switch on "TETRA Terminal PTT key" in Accessibility',
+                      onTap: () async {
+                        await PocPtt.openKeyServiceSettings();
+                        if (mounted) setState(() {});
+                      },
+                    );
+                  },
                 ),
                 FutureBuilder<String?>(
                   future: PocPtt.lastSeen(),

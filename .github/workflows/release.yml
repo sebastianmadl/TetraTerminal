@@ -113,6 +113,9 @@ jobs:
         working-directory: app
         run: |
           ARGS="--release --build-name ${{ needs.version.outputs.name }} --build-number ${{ needs.version.outputs.number }}"
+          # Phone build without the Accessibility key service (Play Protect
+          # blocks sideloaded apps that have one), then the PoC radio build with it.
+          python3 tool/android_variant.py phone
           flutter build apk $ARGS
           flutter build apk $ARGS --split-per-abi
           V=${{ needs.version.outputs.name }}
@@ -120,6 +123,9 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk             ../dist/TetraTerminal-$V-android-universal.apk
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk   ../dist/TetraTerminal-$V-android-arm64.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ../dist/TetraTerminal-$V-android-arm32.apk
+          python3 tool/android_variant.py poc
+          flutter build apk $ARGS --target-platform android-arm,android-arm64
+          cp build/app/outputs/flutter-apk/app-release.apk             ../dist/TetraTerminal-$V-android-poc.apk
           ls -la ../dist
           # Fail if the APK is still signed with the Android debug key.
           APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
@@ -200,7 +206,7 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            **Android:** install `TetraTerminal-${{ needs.version.outputs.name }}-android-arm64.apk` on modern phones (`-universal` works everywhere, `-arm32` for older devices).
+            **Android:** install `TetraTerminal-${{ needs.version.outputs.name }}-android-arm64.apk` on modern phones (`-universal` works everywhere, `-arm32` for older devices). PoC radios such as the Hytera P60 take `-android-poc.apk`, the only build with the background key service.
             **iOS:** `TetraTerminal-${{ needs.version.outputs.name }}-ios-unsigned.ipa`, install with Sideloadly / AltStore (re-signed with your Apple ID).
           files: |
             dist/*.apk
