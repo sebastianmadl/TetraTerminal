@@ -34,7 +34,11 @@ struct TetraLiveActivity: Widget {
               .frame(width: 64, alignment: .trailing)
               .foregroundStyle(tint)
           } else {
+            // Level with the icon on the other side and clear of the
+            // rounded corner, which cut into the pill.
             StatePill(status: s)
+              .frame(height: 40)
+              .padding(.trailing, 8)
           }
         }
         DynamicIslandExpandedRegion(.center) {
@@ -58,17 +62,20 @@ struct TetraLiveActivity: Widget {
           .frame(maxWidth: 78, alignment: .leading)
       } compactTrailing: {
         if let since = s.talkerSince {
-          VStack(alignment: .trailing, spacing: 0) {
+          // RX / TX centred under the timer: right-aligned it ran into the
+          // rounded end of the island.
+          VStack(alignment: .center, spacing: 0) {
             Text(since, style: .timer)
               .font(.system(size: 12, weight: .semibold))
               .monospacedDigit()
-              .multilineTextAlignment(.trailing)
+              .multilineTextAlignment(.center)
               .foregroundStyle(tint)
             Text(s.emergency ? "SOS" : (s.transmitting ? "TX" : "RX"))
               .font(.system(size: 10, weight: .bold))
               .foregroundStyle(.secondary)
           }
-          .frame(width: 44, alignment: .trailing)
+          .frame(width: 40)
+          .padding(.trailing, 4)
         } else {
           TwoLines(top: s.ownName?.isEmpty == false ? s.ownName! : "Standby",
                    bottom: s.ownIssi.map(String.init) ?? "",
