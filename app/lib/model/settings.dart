@@ -252,6 +252,11 @@ class Settings {
   String appearance = 'system';
   /// iOS: show the radio on the Lock Screen and in the Dynamic Island.
   bool liveActivity = true;
+  /// Incoming private calls ring like a phone call, also on the lock screen.
+  bool ringIncoming = true;
+  /// Android: the chosen ring tone (content URI) and its name; null = the phone's ring tone.
+  String? ringtoneUri;
+  String? ringtoneName;
   /// PTT button: false = hold to talk, true = tap to start and tap to stop.
   bool pttToggle = false;
   /// Tap-to-talk (toggle mode) stops by itself
@@ -387,6 +392,9 @@ class Settings {
       ..speakerOut = j['speakerOut'] ?? true
       ..appearance = j['appearance'] ?? 'system'
       ..liveActivity = j['liveActivity'] ?? true
+      ..ringIncoming = j['ringIncoming'] ?? true
+      ..ringtoneUri = j['ringtoneUri']
+      ..ringtoneName = j['ringtoneName']
       ..pttToggle = j['pttToggle'] ?? false
       ..pttAutoStopSeconds = j['pttAutoStopSeconds'] ?? 60
       ..lipEnabled = j['lipEnabled'] ?? false
@@ -466,6 +474,9 @@ class Settings {
         'speakerOut': speakerOut,
         'appearance': appearance,
         'liveActivity': liveActivity,
+        'ringIncoming': ringIncoming,
+        'ringtoneUri': ringtoneUri,
+        'ringtoneName': ringtoneName,
         'pttToggle': pttToggle,
         'pttAutoStopSeconds': pttAutoStopSeconds,
         'lipEnabled': lipEnabled,

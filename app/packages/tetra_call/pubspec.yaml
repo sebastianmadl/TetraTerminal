@@ -1,0 +1,21 @@
+name: tetra_call
+description: Incoming private calls for TETRA Terminal as a system call (CallKit on iOS, ringing full-screen call notification on Android).
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.tetra.call
+        pluginClass: TetraCallPlugin
+      ios:
+        pluginClass: TetraCallPlugin

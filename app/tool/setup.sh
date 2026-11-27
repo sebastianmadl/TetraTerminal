@@ -95,7 +95,7 @@ with open(p, 'rb') as f:
 d['NSMicrophoneUsageDescription'] = 'Needed to talk on TETRA calls.'
 d['NSLocationWhenInUseUsageDescription'] = 'Sends your position (LIP) to dispatch.'
 d['NSLocationAlwaysAndWhenInUseUsageDescription'] = 'Sends your position (LIP) to dispatch.'
-d['UIBackgroundModes'] = sorted(set(d.get('UIBackgroundModes', [])) | {'audio', 'location'})
+d['UIBackgroundModes'] = sorted(set(d.get('UIBackgroundModes', [])) | {'audio', 'location', 'voip'})
 d['NSAppTransportSecurity'] = {'NSAllowsArbitraryLoads': True}  # plain http:// Brew servers
 # Documents folder visible in the Files app (diagnostic transmission captures).
 d['UIFileSharingEnabled'] = True

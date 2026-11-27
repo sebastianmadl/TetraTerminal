@@ -129,11 +129,7 @@ class AudioIO {
     // since iOS only lets an app keep (not start) audio there.
     session.interruptionEventStream.listen((e) async {
       if (e.begin) return;
-      try {
-        await session.setActive(true);
-      } catch (_) {}
-      await _applyRoute();
-      if (_keepAlive != null) _feedSilenceIfLow();
+      await resume();
     });
     // A plugin or the system can change the category or the route (headset
     // plugged in or out, another app): put the chosen output back. Our own
@@ -153,6 +149,18 @@ class AudioIO {
       if (_keepAlive != null) _feedSilenceIfLow();
     });
     _playerReady = true;
+  }
+
+  /// Takes the audio session back after the system had it (phone call, Siri,
+  /// the system call screen of an incoming private call).
+  Future<void> resume() async {
+    final session = _session;
+    if (session == null) return;
+    try {
+      await session.setActive(true);
+    } catch (_) {}
+    await _applyRoute();
+    if (_keepAlive != null) _feedSilenceIfLow();
   }
 
   static bool get _isApple => defaultTargetPlatform == TargetPlatform.iOS;

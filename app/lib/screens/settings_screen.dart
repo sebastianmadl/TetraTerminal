@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:poc_ptt/poc_ptt.dart';
 import 'package:provider/provider.dart';
@@ -167,6 +168,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) async {
                       if (v) await Permission.notification.request();
                       await m.setLiveActivity(v);
+                    },
+                  ),
+                SwitchRow(
+                  title: 'Ring on incoming calls',
+                  subtitle: isApple(context)
+                      ? 'Private calls ring on the iPhone call screen, also when locked, with Accept and Decline. Works while the app runs in the background'
+                      : 'Private calls ring with the phone ring tone and open full screen over the lock screen, with Answer and Decline',
+                  value: s.ringIncoming,
+                  onChanged: (v) async {
+                    if (v && Platform.isAndroid) await Permission.notification.request();
+                    setState(() => s.ringIncoming = v);
+                  },
+                ),
+                if (!isApple(context) && s.ringIncoming)
+                  Tile(
+                    title: 'Ring tone',
+                    subtitle: s.ringtoneName ?? 'Ring tone of the phone',
+                    onTap: () async {
+                      try {
+                        final picked = await m.callAlert.pickRingtone(s.ringtoneUri);
+                        if (picked == null || !mounted) return;
+                        setState(() {
+                          s.ringtoneUri = picked.uri;
+                          s.ringtoneName = picked.title;
+                        });
+                      } on PlatformException catch (e) {
+                        m.toast = e.message ?? 'No ring tone picker on this device';
+                        m.notifyListeners();
+                      } on MissingPluginException {
+                        // not on this platform
+                      }
                     },
                   ),
               ]),

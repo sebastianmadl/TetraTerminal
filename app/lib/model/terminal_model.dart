@@ -11,6 +11,7 @@ import 'package:poc_ptt/poc_ptt.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/audio_io.dart';
+import '../services/call_alert.dart';
 import '../services/live_status.dart';
 import '../services/location_service.dart';
 import '../services/ptt_input.dart';
@@ -77,6 +78,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   Settings settings;
   final audio = AudioIO();
   final live = LiveStatus();
+  final callAlert = CallAlert();
+  /// Muted on the system call screen (iOS) during a full-duplex call.
+  bool _callMuted = false;
   final contacts = ContactBook();
   final callLog = CallLog();
   /// Open call log entries by call id, to set the duration when they end.
@@ -265,9 +269,18 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> start() async {
     WidgetsBinding.instance.addObserver(this);
-    live.onTogglePtt(togglePtt);
+    callAlert
+      ..onAnswer = (() => _client?.answer())
+      ..onEnd = (() => _client?.hangup())
+      ..onDtmf = dtmf
+      ..onMute = (muted) {
+        _callMuted = muted;
+        _updateMic();
+      }
+      ..onAudio = _onCallAudio
+      ..listen();
     // Android 13+: the ongoing notification needs the notification permission.
-    if (!kIsWeb && Platform.isAndroid && settings.liveActivity) unawaited(Permission.notification.request());
+    if (!kIsWeb && Platform.isAndroid && (settings.liveActivity || settings.ringIncoming)) unawaited(Permission.notification.request());
     contacts.addListener(notifyListeners);
     await contacts.load();
     await callLog.load();
@@ -522,6 +535,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     _closeLog();
     groupAccess = const {};
     managedGroups = null;
+    final shown = callAlert.shown;
+    if (shown != null) unawaited(callAlert.ended(shown));
+    _callMuted = false;
     privateCall = null;
     myTxCallId = null;
     await WakelockPlus.disable();
@@ -661,9 +677,12 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
           if (call.incoming) _openLog['pc:${call.id}']?.kind = CallKind.privateIn;
         }
         privateCall = call;
+        _alertCall(call);
         _updateMic();
       case AppEvent_PrivateCallEnded(:final callId):
         if (privateCall?.id == callId) privateCall = null;
+        _callMuted = false;
+        unawaited(callAlert.ended(callId));
         final e = _openLog.remove('pc:$callId');
         if (e != null && _privateConnectedAt != null) e.duration = DateTime.now().difference(_privateConnectedAt!);
         callLog.changed();
@@ -732,7 +751,29 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     callLog.changed();
   }
 
-  bool get _micWanted => myTxCallId != null || (privateCall?.state == 'connected' && privateCall!.duplex);
+  bool get _micWanted => myTxCallId != null || (privateCall?.state == 'connected' && privateCall!.duplex && !_callMuted);
+
+  /// An incoming private call rings like a phone call (see [CallAlert]).
+  void _alertCall(PrivateCallInfo call) {
+    if (!call.incoming) return;
+    if (call.state == 'ringing') {
+      if (!settings.ringIncoming || callAlert.shown == call.id) return;
+      final name = call.number != null ? (call.peerName ?? 'Phone') : nameOf(call.peer, sentName: call.peerName);
+      final sub = call.number ?? (name != 'ISSI ${call.peer}' ? 'ISSI ${call.peer}' : null);
+      unawaited(callAlert.incoming(id: call.id, name: name, sub: sub, emergency: call.priority >= 15, duplex: call.duplex, ringtone: settings.ringtoneUri));
+    } else if (call.state == 'connected') {
+      unawaited(callAlert.connected(call.id));
+    }
+  }
+
+  /// iOS: the system call screen hands the audio session over when the call is
+  /// answered and takes it back afterwards. Either way the app's audio has to
+  /// start again on the session as it is now.
+  Future<void> _onCallAudio(bool active) async {
+    await audio.resume();
+    if (audio.micRunning) await audio.stopMic();
+    _updateMic();
+  }
 
   void _startMic() {
     if (audio.micRunning) return;
@@ -874,8 +915,27 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   void dialExternal(String number, {int? priority}) =>
       _client?.dialExternal(number: '${settings.externalPrefix}$number', priority: priority);
 
-  void answer() => _client?.answer();
-  void hangup() => _client?.hangup();
+  /// Answers the ringing call. On iOS a call on the system call screen is
+  /// answered through the system, which then calls back into [CallAlert.onAnswer].
+  void answer() {
+    if (!callAlert.viaSystem) {
+      _client?.answer();
+      return;
+    }
+    callAlert.answer().then((ok) {
+      if (!ok) _client?.answer();
+    });
+  }
+
+  void hangup() {
+    if (!callAlert.viaSystem) {
+      _client?.hangup();
+      return;
+    }
+    callAlert.end().then((ok) {
+      if (!ok) _client?.hangup();
+    });
+  }
   void dtmf(String d) => _client?.sendDtmf(digit: d);
 
   void sendText(int to, String text, {bool immediate = false}) {
