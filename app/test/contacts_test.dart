@@ -59,4 +59,19 @@ void main() {
     expect(b.display(2321109, sentName: 'O\nE94i'), 'OE1GKS');
     expect(b.display(2321109, sentName: 'OE1GKS-M'), 'OE1GKS-M');
   });
+
+  test('RadioID search: callsign prefix, every ID of a callsign, exact match first, IDs by number', () {
+    final b = ContactBook()
+      ..radioIdForTest = {
+        2320856: (callsign: 'OE4SXM', firstName: 'Sebastian'),
+        2320997: (callsign: 'OE4SXM', firstName: 'Sebastian'),
+        2320111: (callsign: 'OE4SX', firstName: 'Max'),
+        2629001: (callsign: 'DL2XY', firstName: 'Max'),
+      };
+    expect(b.searchRadioId('oe4sx').map((r) => r.issi), [2320111, 2320856, 2320997]);
+    expect(b.searchRadioId('OE4SXM').map((r) => r.issi), [2320856, 2320997]);
+    expect(b.searchRadioId('23208').map((r) => r.issi), [2320856]);
+    expect(b.searchRadioId('o'), isEmpty);
+    expect(b.searchRadioId('zz'), isEmpty);
+  });
 }

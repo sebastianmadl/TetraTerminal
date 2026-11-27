@@ -44,6 +44,31 @@ class ContactBook extends ChangeNotifier {
   Contact? contactOf(int issi) => contacts.where((c) => c.issi == issi).firstOrNull;
   RadioIdEntry? radioIdOf(int issi) => _radioId[issi];
 
+  /// RadioID entries for a search text: callsigns that start with it (every
+  /// ID of a callsign is its own row), or IDs that start with it when it is a
+  /// number. Exact callsigns first, at most [limit] rows.
+  List<({int issi, RadioIdEntry entry})> searchRadioId(String query, {int limit = 40}) {
+    final q = query.trim().toUpperCase();
+    if (q.length < 2) return const [];
+    final digits = RegExp(r'^[0-9]+$').hasMatch(q);
+    final exact = <({int issi, RadioIdEntry entry})>[], rest = <({int issi, RadioIdEntry entry})>[];
+    for (final e in _radioId.entries) {
+      final call = e.value.callsign.toUpperCase();
+      if (digits ? '${e.key}'.startsWith(q) : call.startsWith(q)) {
+        ((digits ? '${e.key}' == q : call == q) ? exact : rest).add((issi: e.key, entry: e.value));
+        if (rest.length >= limit * 4) break;
+      }
+    }
+    int order(({int issi, RadioIdEntry entry}) a, ({int issi, RadioIdEntry entry}) b) {
+      final c = a.entry.callsign.compareTo(b.entry.callsign);
+      return c != 0 ? c : a.issi.compareTo(b.issi);
+    }
+
+    exact.sort(order);
+    rest.sort(order);
+    return [...exact, ...rest].take(limit).toList();
+  }
+
   /// The name to show for a talker: own contact, then the name the radio
   /// sent (talking party identity), then RadioID, then the ISSI.
   String display(int issi, {String? sentName}) {

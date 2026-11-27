@@ -96,6 +96,14 @@ class CallAlert {
   /// iOS: plays a bundled ring tone once (null stops it).
   Future<void> preview(String? name) => _call<void>('preview', {'name': name});
 
+  /// A text message (SDS) arrived: the notification tone, and a notification
+  /// when the app is not on screen.
+  Future<void> message({required int peer, required String title, required String text}) =>
+      _call<void>('message', {'peer': peer, 'title': title, 'text': text});
+
+  /// iOS: asks once for the permission to show message notifications.
+  Future<void> messagePermission() => _call<void>('messagePermission', null);
+
   /// The call was answered: stop ringing.
   Future<void> connected(String id) async {
     if (_shown != id) return;

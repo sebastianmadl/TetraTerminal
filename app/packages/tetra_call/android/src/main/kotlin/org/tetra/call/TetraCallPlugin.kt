@@ -1,6 +1,9 @@
 package org.tetra.call
 
 import android.app.Activity
+import android.app.Application
+import android.os.Bundle
+import android.os.PowerManager
 import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
@@ -22,7 +25,11 @@ import io.flutter.plugin.common.PluginRegistry
  * screen. Works while the app is running; the ongoing radio notification keeps
  * it running in the background.
  *
- * App -> native: incoming, connected, ended, pickRingtone.
+ * While the app is on screen it only rings (RingPlayer) and the app's call
+ * screen shows the call. An incoming text message plays the notification
+ * tone, with a notification when the app is not on screen.
+ *
+ * App -> native: incoming, connected, ended, message, pickRingtone.
  * Native -> app: answer, end.
  */
 class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, PluginRegistry.NewIntentListener,
@@ -33,6 +40,13 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
     /** A call is ringing or running: the app may show over the lock screen. */
     private var inCall = false
     private var pickResult: MethodChannel.Result? = null
+
+    private class Ring(val id: String, val name: String, val sub: String?, val emergency: Boolean, val ringtone: String?, val labels: List<String>?)
+    /** The call that is ringing right now. */
+    private var ring: Ring? = null
+    /** The app's screen is in front. */
+    private var resumed = false
+    private var silenced = false
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -45,6 +59,7 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
         channel?.setMethodCallHandler(null)
         channel = null
         CallNotification.cancel(context)
+        RingPlayer.stop()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -52,8 +67,7 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
             "incoming" -> {
                 inCall = true
                 overLockScreen(true)
-                val shown = CallNotification.show(
-                    context,
+                ring = Ring(
                     id = call.argument<String>("id") ?: "",
                     name = call.argument<String>("name") ?: "",
                     sub = call.argument<String>("sub"),
@@ -61,22 +75,81 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                     ringtone = call.argument<String>("ringtone"),
                     labels = call.argument<List<String>>("labels"),
                 )
-                result.success(shown)
+                silenced = false
+                result.success(startRinging())
             }
             // Answered (here or in the app): stop ringing, the app shows the call.
             "connected" -> {
-                CallNotification.cancel(context)
+                stopRinging()
                 result.success(null)
             }
             "ended" -> {
-                CallNotification.cancel(context)
+                stopRinging()
                 inCall = false
                 overLockScreen(false)
                 result.success(null)
             }
+            "message" -> {
+                val title = call.argument<String>("title") ?: ""
+                val text = call.argument<String>("text") ?: ""
+                if (resumed) MessageNotification.sound(context) else MessageNotification.show(context, call.argument<Int>("peer") ?: 0, title, text)
+                result.success(null)
+            }
+            "messagePermission" -> result.success(null)
             "pickRingtone" -> pickRingtone(call.argument<String>("current"), result)
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * App on screen: it shows the call itself, so it only rings. Otherwise
+     * the call notification rings and opens the app over the lock screen.
+     */
+    private fun startRinging(): Boolean {
+        val r = ring ?: return false
+        if (resumed) {
+            CallNotification.cancel(context)
+            RingPlayer.start(context, r.ringtone)
+            return true
+        }
+        RingPlayer.stop()
+        return CallNotification.show(context, r.id, r.name, r.sub, r.emergency, r.ringtone, r.labels)
+    }
+
+    private fun stopRinging() {
+        ring = null
+        RingPlayer.stop()
+        CallNotification.cancel(context)
+    }
+
+    private val lifecycle = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityResumed(a: Activity) {
+            if (a !== activity) return
+            resumed = true
+            // Opened from the notification: the call screen takes over.
+            if (ring != null && !silenced) startRinging()
+        }
+
+        override fun onActivityPaused(a: Activity) {
+            if (a !== activity) return
+            resumed = false
+            if (ring == null || silenced) return
+            val interactive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
+            if (interactive) {
+                // The user left the app while it rings: carry on as a notification.
+                startRinging()
+            } else {
+                // Power key while ringing: silence it, like a phone does.
+                silenced = true
+                RingPlayer.stop()
+            }
+        }
+
+        override fun onActivityCreated(a: Activity, b: Bundle?) {}
+        override fun onActivityStarted(a: Activity) {}
+        override fun onActivityStopped(a: Activity) {}
+        override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
+        override fun onActivityDestroyed(a: Activity) {}
     }
 
     /** The system's ring tone picker; answers {uri, title} or null when cancelled. */
@@ -151,11 +224,14 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
         activity = binding.activity
         binding.addOnNewIntentListener(this)
         binding.addActivityResultListener(this)
+        binding.activity.application.registerActivityLifecycleCallbacks(lifecycle)
         if (inCall) overLockScreen(true)
         handle(binding.activity.intent)
     }
 
     override fun onDetachedFromActivity() {
+        activity?.application?.unregisterActivityLifecycleCallbacks(lifecycle)
+        resumed = false
         binding?.removeOnNewIntentListener(this)
         binding?.removeActivityResultListener(this)
         binding = null
@@ -171,11 +247,13 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
         @Volatile var channel: MethodChannel? = null
 
         fun answer(ctx: Context, id: String?) {
+            RingPlayer.stop()
             CallNotification.cancel(ctx)
             main.post { channel?.invokeMethod("answer", id) }
         }
 
         fun decline(ctx: Context, id: String?) {
+            RingPlayer.stop()
             CallNotification.cancel(ctx)
             main.post { channel?.invokeMethod("end", id) }
         }

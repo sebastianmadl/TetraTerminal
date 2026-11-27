@@ -50,6 +50,9 @@ class ChatMessage {
   final int? localId;
   MsgStatus status;
   final DateTime time;
+
+  /// A received message the user has not seen in its conversation yet.
+  bool unread = false;
 }
 
 /// A network the server links to (Multi Network, `SERVICE_NETWORKS`).
@@ -280,6 +283,10 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       }
       ..onAudio = _onCallAudio
       ..listen();
+    // iOS asks once whether message notifications may be shown.
+    if (settings.messageAlert && Settings.firstStartPrompts && defaultTargetPlatform == TargetPlatform.iOS) {
+      unawaited(callAlert.messagePermission());
+    }
     // Android 13+: the ongoing notification needs the notification permission.
     if (!kIsWeb && Platform.isAndroid && (settings.liveActivity || settings.ringIncoming)) unawaited(Permission.notification.request());
     contacts.addListener(notifyListeners);
@@ -694,8 +701,13 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       case AppEvent_TextReceived(:final from, :final to, :final text, :final immediate):
         // Group messages are filed under the group, private ones under the sender.
         final peer = to == settings.issi ? from : to;
-        messages.add(ChatMessage(peer: peer, outgoing: false, text: text, status: MsgStatus.received, immediate: immediate));
+        messages.add(ChatMessage(peer: peer, outgoing: false, text: text, status: MsgStatus.received, immediate: immediate)..unread = openConversation != peer);
         if (immediate) toast = tr('Flash message from {0}: {1}', [from, text]);
+        if (settings.messageAlert) {
+          final group = settings.talkgroups.where((t) => t.gssi == peer).firstOrNull;
+          final sender = nameOf(from);
+          unawaited(callAlert.message(peer: peer, title: group != null ? '$sender · ${group.name}' : sender, text: text));
+        }
       case AppEvent_MessageStatus(:final localId, :final status):
         final m = messages.where((m) => m.localId == localId).firstOrNull;
         if (m != null) {
@@ -794,6 +806,29 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void clearToast() => toast = null;
+
+  /// The conversation on screen; its messages count as read when they arrive.
+  int? openConversation;
+
+  /// Unread received messages, of one conversation or of all.
+  int unreadMessages([int? peer]) => messages.where((x) => x.unread && (peer == null || x.peer == peer)).length;
+
+  /// The conversation with [peer] is on screen (or was left, [open] false).
+  void conversationOpen(int peer, bool open) {
+    if (open) {
+      openConversation = peer;
+    } else if (openConversation == peer) {
+      openConversation = null;
+    }
+    var changed = false;
+    for (final x in messages) {
+      if (x.peer == peer && x.unread) {
+        x.unread = false;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
 
   // ───────── actions ─────────
 

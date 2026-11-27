@@ -39,16 +39,7 @@ class MessagesScreen extends StatelessWidget {
         IconButton(
           tooltip: tr('New message'),
           icon: Icon(pick(context, Icons.edit_outlined, CupertinoIcons.square_pencil)),
-          onPressed: () async {
-            var to = '';
-            final ok = await showFormSheet(context, title: 'New message', action: 'Open', fields: [
-              FieldRow(label: 'To', initial: '', number: true, hint: 'ISSI or GSSI', onChanged: (v) => to = v),
-            ]);
-            final n = int.tryParse(to);
-            if (ok && n != null && n > 0 && context.mounted) {
-              Navigator.push(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: n, title: label(n))));
-            }
-          },
+          onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const NewMessageScreen())),
         ),
       ],
       slivers: [
@@ -83,6 +74,7 @@ class MessagesScreen extends StatelessWidget {
                       if (m.locations[p] != null) Icon(CupertinoIcons.location_solid, size: 14, color: scheme.outline),
                       const SizedBox(width: 4),
                       Text(_time(context, last.time), style: TextStyle(color: scheme.outline, fontSize: 13)),
+                      if (m.unreadMessages(p) > 0) Padding(padding: const EdgeInsets.only(left: 6), child: Badge(label: Text('${m.unreadMessages(p)}'))),
                       if (isApple(context)) const CupertinoListTileChevron(),
                     ]),
                     onTap: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: p, title: label(p)))),
@@ -91,6 +83,100 @@ class MessagesScreen extends StatelessWidget {
             ]),
           ),
       ],
+    );
+  }
+}
+
+/// New message: one field on top for a number, a name or a callsign, and
+/// below it what matches, from the own lists (contacts, talkgroups) and from
+/// the RadioID.net database. A callsign with several IDs lists each ID.
+class NewMessageScreen extends StatefulWidget {
+  const NewMessageScreen({super.key});
+  @override
+  State<NewMessageScreen> createState() => _NewMessageScreenState();
+}
+
+class _NewMessageScreenState extends State<NewMessageScreen> {
+  String _query = '';
+
+  void _open(int peer, String title) =>
+      Navigator.pushReplacement(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: peer, title: title)));
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<TerminalModel>();
+    final scheme = Theme.of(context).colorScheme;
+    final q = _query.trim().toLowerCase();
+    final number = int.tryParse(q);
+    bool hit(String name, int id) => q.isEmpty || name.toLowerCase().contains(q) || '$id'.contains(q);
+    final contacts = m.contacts.contacts.where((c) => hit(c.name, c.issi)).toList();
+    final groups = m.settings.talkgroups.where((t) => hit(t.name, t.gssi)).toList();
+    final own = {...contacts.map((c) => c.issi), ...groups.map((t) => t.gssi)};
+    final db = m.contacts.searchRadioId(q).where((r) => !own.contains(r.issi)).toList();
+    final direct = number != null && number > 0 && number <= 0xFFFFFF && !own.contains(number);
+
+    Widget icon(IconData i, {bool group = false}) => CircleAvatar(
+          radius: 18,
+          backgroundColor: group ? scheme.primary : scheme.surfaceContainerHigh,
+          child: Icon(i, size: 18, color: group ? Colors.white : scheme.onSurfaceVariant),
+        );
+
+    return Scaffold(
+      appBar: AppBar(title: const Tx('New message'), centerTitle: isApple(context)),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Tokens.gutter, 4, Tokens.gutter, 8),
+          child: isApple(context)
+              ? CupertinoSearchTextField(autofocus: true, placeholder: tr('Number, name or callsign'), onChanged: (v) => setState(() => _query = v))
+              : TextField(
+                  autofocus: true,
+                  decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: tr('Number, name or callsign')),
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+        ),
+        Expanded(
+          child: ListView(keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, children: [
+            if (direct)
+              Section(children: [
+                Tile(
+                  leading: icon(CupertinoIcons.number),
+                  title: tr('Write to {0}', [number]),
+                  subtitle: m.contacts.radioIdOf(number)?.callsign ?? 'ISSI or GSSI',
+                  onTap: () => _open(number, m.nameOf(number)),
+                ),
+              ]),
+            if (contacts.isNotEmpty)
+              Section(header: 'Contacts', children: [
+                for (final c in contacts)
+                  Tile(leading: icon(CupertinoIcons.person_fill), title: c.name, subtitle: 'ISSI ${c.issi}', onTap: () => _open(c.issi, c.name)),
+              ]),
+            if (groups.isNotEmpty)
+              Section(header: 'Groups', children: [
+                for (final t in groups)
+                  Tile(leading: icon(CupertinoIcons.person_3_fill, group: true), title: t.name, subtitle: 'GSSI ${t.gssi}', onTap: () => _open(t.gssi, t.name)),
+              ]),
+            if (db.isNotEmpty)
+              Section(header: 'RadioID.net', children: [
+                for (final r in db)
+                  Tile(
+                    leading: icon(CupertinoIcons.antenna_radiowaves_left_right),
+                    title: [r.entry.callsign, if (r.entry.firstName.isNotEmpty) r.entry.firstName].join(' · '),
+                    subtitle: 'ISSI ${r.issi}',
+                    onTap: () => _open(r.issi, r.entry.callsign),
+                  ),
+              ]),
+            if (!direct && contacts.isEmpty && groups.isEmpty && db.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Tx(
+                  q.isEmpty ? 'Type a number, or search your contacts, groups and the callsign database.' : 'Nothing found. Type the number (ISSI or GSSI) to write to it directly.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -106,6 +192,25 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen> {
   final _text = TextEditingController();
   bool _flash = false;
+  late final TerminalModel _model;
+
+  @override
+  void initState() {
+    super.initState();
+    _model = context.read<TerminalModel>();
+    // After the first frame: marking as read notifies the lists behind.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _model.conversationOpen(widget.peer, true);
+    });
+  }
+
+  @override
+  void dispose() {
+    final model = _model, peer = widget.peer;
+    Future.microtask(() => model.conversationOpen(peer, false));
+    _text.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -272,79 +272,115 @@ class _ActiveCallState extends State<_ActiveCall> {
     };
     final initials = name.trim().isEmpty ? '?' : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
 
+    final connected = call.state == 'connected';
+    final pad = connected && call.duplex && _keypad;
+
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Column(children: [
-          if (call.priority >= 15)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: Tokens.emergency, borderRadius: BorderRadius.circular(999)),
-              child: const Tx('EMERGENCY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            ),
-          const SizedBox(height: 32),
-          CircleAvatar(radius: 48, backgroundColor: scheme.surfaceContainerHigh, child: Text(initials, style: text.headlineMedium?.copyWith(color: scheme.onSurface))),
-          const SizedBox(height: 16),
-          Text(name, textAlign: TextAlign.center, style: text.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
-          if (sub != null) Text(sub, style: text.titleMedium?.copyWith(color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          if (call.state == 'connected' && _connectedAt != null && status == null)
-            Elapsed(_connectedAt!, style: text.titleMedium?.copyWith(color: scheme.onSurfaceVariant))
-          else
-            Text(status ?? '', style: text.titleMedium?.copyWith(color: scheme.onSurfaceVariant)),
-          const Spacer(),
-          if (call.state == 'connected' && !call.duplex) const PttButton(compact: true),
-          if (call.state == 'connected' && call.duplex && _keypad) _Dtmf(onDigit: m.dtmf),
-          const SizedBox(height: 24),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            if (call.state == 'connected' && call.duplex)
-              _RoundButton(
-                size: 64,
-                color: _keypad ? scheme.primary : scheme.surfaceContainerHighest,
-                icon: CupertinoIcons.circle_grid_3x3_fill,
-                label: 'Keypad',
-                onTap: () => setState(() => _keypad = !_keypad),
+      child: LayoutBuilder(builder: (context, box) {
+        // A small screen (PoC radios) or the keypad: the caller shrinks so the
+        // keys and the hang-up button always fit.
+        final compact = box.maxHeight < 560;
+        final avatar = pad ? (compact ? 0.0 : 28.0) : (compact ? 30.0 : 48.0);
+        final button = compact ? 56.0 : 72.0;
+        final nameStyle = (compact || pad ? text.titleLarge : text.headlineMedium)?.copyWith(fontWeight: FontWeight.w600);
+        final subStyle = (compact ? text.bodyMedium : text.titleMedium)?.copyWith(color: scheme.onSurfaceVariant);
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24, vertical: compact ? 6 : 16),
+          child: Column(children: [
+            if (call.priority >= 15)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(color: Tokens.emergency, borderRadius: BorderRadius.circular(999)),
+                child: const Tx('EMERGENCY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               ),
-            if (call.state == 'ringing')
-              _RoundButton(size: 72, color: Tokens.online, icon: CupertinoIcons.phone_fill, label: 'Answer', onTap: () {
-                Haptics.press();
-                m.answer();
+            SizedBox(height: pad ? (compact ? 0 : 8) : (compact ? 8 : 32)),
+            if (avatar > 0) ...[
+              CircleAvatar(
+                radius: avatar,
+                backgroundColor: scheme.surfaceContainerHigh,
+                child: Text(initials, style: (avatar < 40 ? text.titleLarge : text.headlineMedium)?.copyWith(color: scheme.onSurface)),
+              ),
+              SizedBox(height: compact || pad ? 6 : 16),
+            ],
+            Text(name, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: nameStyle),
+            if (sub != null) Text(sub, style: subStyle),
+            SizedBox(height: compact || pad ? 2 : 8),
+            if (connected && _connectedAt != null && status == null) Elapsed(_connectedAt!, style: subStyle) else Text(status ?? '', style: subStyle),
+            Expanded(
+              child: pad
+                  ? Padding(padding: EdgeInsets.only(top: compact ? 4 : 12), child: _Dtmf(onDigit: m.dtmf))
+                  : connected && !call.duplex
+                      ? const Align(alignment: Alignment.bottomCenter, child: FittedBox(fit: BoxFit.scaleDown, child: PttButton(compact: true)))
+                      : const SizedBox.shrink(),
+            ),
+            SizedBox(height: compact ? 8 : 24),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              if (connected && call.duplex)
+                _RoundButton(
+                  size: button - 8,
+                  color: _keypad ? scheme.primary : scheme.surfaceContainerHighest,
+                  icon: CupertinoIcons.circle_grid_3x3_fill,
+                  label: 'Keypad',
+                  onTap: () => setState(() => _keypad = !_keypad),
+                ),
+              if (call.state == 'ringing')
+                _RoundButton(size: button, color: Tokens.online, icon: CupertinoIcons.phone_fill, label: 'Answer', onTap: () {
+                  Haptics.press();
+                  m.answer();
+                }),
+              _RoundButton(size: button, color: Tokens.emergency, icon: CupertinoIcons.phone_down_fill, label: 'Hang up', onTap: () {
+                Haptics.release();
+                m.hangup();
               }),
-            _RoundButton(size: 72, color: Tokens.emergency, icon: CupertinoIcons.phone_down_fill, label: 'Hang up', onTap: () {
-              Haptics.release();
-              m.hangup();
-            }),
+            ]),
+            SizedBox(height: compact ? 4 : 16),
           ]),
-          const SizedBox(height: 16),
-        ]),
-      ),
+        );
+      }),
     );
   }
 }
 
+/// The in-call keypad, three keys wide like a phone's. It takes the room it
+/// is given and sizes the keys to fit.
 class _Dtmf extends StatelessWidget {
   const _Dtmf({required this.onDigit});
   final void Function(String) onDigit;
 
   @override
   Widget build(BuildContext context) {
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 18,
-      runSpacing: 12,
-      children: [
-        for (final k in keys)
-          _Key(k, size: 58, onTap: () {
-            Haptics.select();
-            onDigit(k);
-          }),
-      ],
-    );
+    const rows = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['*', '0', '#'],
+    ];
+    return LayoutBuilder(builder: (context, box) {
+      const maxKey = 76.0;
+      final byHeight = box.maxHeight / (4 + 3 * .16);
+      final byWidth = box.maxWidth / (3 + 2 * .32);
+      final size = math.min(maxKey, math.min(byHeight, byWidth)).clamp(24.0, maxKey);
+      final gapY = size * .16, gapX = size * .32;
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          for (final (i, row) in rows.indexed) ...[
+            if (i > 0) SizedBox(height: gapY),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              for (final (j, k) in row.indexed) ...[
+                if (j > 0) SizedBox(width: gapX),
+                _Key(k, size: size, onTap: () {
+                  Haptics.select();
+                  onDigit(k);
+                }),
+              ],
+            ]),
+          ],
+        ]),
+      );
+    });
   }
 }
 
-/// Call log: time, callsign, group (or call type) and how long they talked.
 class RecentsList extends StatelessWidget {
   const RecentsList({super.key, required this.onCall});
   final void Function(int issi) onCall;

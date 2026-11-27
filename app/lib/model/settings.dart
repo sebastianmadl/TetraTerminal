@@ -258,6 +258,9 @@ class Settings {
   bool liveActivity = true;
   /// Incoming private calls ring like a phone call, also on the lock screen.
   bool ringIncoming = true;
+
+  /// Tone and notification for a received text message (SDS).
+  bool messageAlert = true;
   /// Android: the chosen ring tone (content URI) and its name; null = the phone's ring tone.
   String? ringtoneUri;
   String? ringtoneName;
@@ -404,6 +407,7 @@ class Settings {
       ..appearance = j['appearance'] ?? 'system'
       ..liveActivity = j['liveActivity'] ?? true
       ..ringIncoming = j['ringIncoming'] ?? true
+      ..messageAlert = j['messageAlert'] ?? true
       ..ringtoneUri = j['ringtoneUri']
       ..language = j['language']
       ..keyServiceAsked = j['keyServiceAsked'] ?? false
@@ -488,6 +492,7 @@ class Settings {
         'appearance': appearance,
         'liveActivity': liveActivity,
         'ringIncoming': ringIncoming,
+        'messageAlert': messageAlert,
         'ringtoneUri': ringtoneUri,
         'language': language,
         'keyServiceAsked': keyServiceAsked,

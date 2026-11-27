@@ -327,6 +327,18 @@ class CallSettings extends StatelessWidget {
                 },
               ),
           ]),
+          Section(header: 'Messages', children: [
+            SwitchRow(
+              title: 'Notify on new messages',
+              subtitle: 'Tone for a received text message (SDS), and a notification while the app is in the background',
+              value: s.messageAlert,
+              onChanged: (v) async {
+                if (v && _android) await Permission.notification.request();
+                if (v && !_android) await m.callAlert.messagePermission();
+                set(() => s.messageAlert = v);
+              },
+            ),
+          ]),
           Section(
             header: 'Background',
             footer: isApple(context)

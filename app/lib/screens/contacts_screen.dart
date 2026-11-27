@@ -93,6 +93,20 @@ class ContactsScreenState extends State<ContactsScreen> {
                     if (m.contacts.radioIdOf(c.issi) case final r? when r.callsign != c.name) r.callsign,
                     if (c.note.isNotEmpty) c.note,
                   ].join(' · '),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: tr('Message'),
+                      icon: Icon(pick(context, Icons.chat_bubble_outline, CupertinoIcons.chat_bubble), color: scheme.primary),
+                      onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => ConversationScreen(peer: c.issi, title: c.name))),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: tr('Call'),
+                      icon: Icon(pick(context, Icons.call_outlined, CupertinoIcons.phone), color: Tokens.online),
+                      onPressed: () => widget.onCall?.call(c.issi),
+                    ),
+                  ]),
                   onTap: () => _actions(context, m, c),
                 ),
             ]),

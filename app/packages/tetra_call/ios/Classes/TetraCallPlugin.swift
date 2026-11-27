@@ -1,14 +1,17 @@
 import AVFoundation
+import AudioToolbox
 import CallKit
 import Flutter
 import UIKit
+import UserNotifications
 
 /// Channel "tetra/call": incoming private calls ring on the system call screen
 /// (Lock Screen included) and are answered or declined there. Works while the
 /// app is running, in front or in the background; a terminated app is not
 /// woken up (that would need VoIP pushes).
 ///
-/// App -> native: incoming, connected, ended, answer, end, ringtones, preview.
+/// App -> native: incoming, connected, ended, answer, end, message,
+/// messagePermission, ringtones, preview.
 /// Native -> app: answer, end, mute, dtmf, audio.
 public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate {
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -115,6 +118,24 @@ public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate 
     case "end":
       guard let uuid = calls[id] else { return result(false) }
       request(CXEndCallAction(call: uuid), result)
+    case "message":
+      // A received text message: the tone alone while the app is on screen,
+      // a notification with sound otherwise.
+      if UIApplication.shared.applicationState == .active {
+        AudioServicesPlaySystemSound(1007)
+      } else {
+        let content = UNMutableNotificationContent()
+        content.title = args["title"] as? String ?? ""
+        content.body = args["text"] as? String ?? ""
+        content.sound = .default
+        let peer = args["peer"] as? Int ?? 0
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "sds-\(peer)", content: content, trigger: nil))
+      }
+      result(nil)
+    case "messagePermission":
+      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+        DispatchQueue.main.async { result(granted) }
+      }
     case "ringtones":
       result(bundledRingtones())
     case "preview":

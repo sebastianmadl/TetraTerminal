@@ -637,4 +637,13 @@ const german = <String, String>{
       'Start',
   'TETRA Terminal failed to start':
       'TETRA Terminal konnte nicht starten',
+  'Number, name or callsign': 'Nummer, Name oder Rufzeichen',
+  'Write to {0}': 'An {0} schreiben',
+  'Type a number, or search your contacts, groups and the callsign database.':
+      'Gib eine Nummer ein oder such in deinen Kontakten, Gruppen und der Rufzeichen-Datenbank.',
+  'Nothing found. Type the number (ISSI or GSSI) to write to it directly.':
+      'Nichts gefunden. Gib die Nummer (ISSI oder GSSI) ein, um direkt zu schreiben.',
+  'Notify on new messages': 'Bei neuen Nachrichten benachrichtigen',
+  'Tone for a received text message (SDS), and a notification while the app is in the background':
+      'Ton bei einer empfangenen Textnachricht (SDS) und eine Benachrichtigung, wenn die App im Hintergrund ist',
 };

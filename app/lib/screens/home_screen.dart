@@ -104,10 +104,12 @@ class _HomeScreenState extends State<HomeScreen> {
         m.clearToast();
       });
     }
-    // An incoming private call always surfaces the Calls tab.
+    // An incoming private call always surfaces the Calls tab, and the app
+    // stays there once it is answered.
     final ringing = m.privateCall?.incoming == true && m.privateCall?.state == 'ringing';
-    final tab = ringing ? 1 : _tab;
-    final unread = m.messages.where((x) => !x.outgoing && x.status == MsgStatus.received).isNotEmpty;
+    if (ringing) _tab = 1;
+    final tab = _tab;
+    final unread = m.unreadMessages();
 
     final items = [
       (pick(context, Icons.cell_tower, CupertinoIcons.antenna_radiowaves_left_right), 'Radio'),
@@ -142,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ? GlassTabBar(
               index: tab,
               onTap: select,
-              badges: {if (unread) 3},
+              badges: {if (unread > 0) 3: unread},
               items: [for (final (i, it) in items.indexed) (it.$1, filled[i], it.$2)],
             )
           : NavigationBarTheme(
@@ -163,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onDestinationSelected: select,
                 destinations: [
                   for (final (i, it) in items.indexed)
-                    NavigationDestination(icon: Badge(isLabelVisible: i == 3 && unread, smallSize: 8, child: Icon(it.$1)), label: tr(it.$2)),
+                    NavigationDestination(icon: Badge(isLabelVisible: i == 3 && unread > 0, label: Text('$unread'), child: Icon(it.$1)), label: tr(it.$2)),
                 ],
               ),
             ),

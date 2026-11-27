@@ -391,4 +391,57 @@ void main() {
     addTearDown(() => L.current = 'en');
     await _shot(t, '46-de-android-small', _model(), const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 533));
   });
+
+  PrivateCallInfo talking() =>
+      const PrivateCallInfo(id: 'p1', peer: 2320972, peerName: 'OE1ABC', incoming: true, state: 'connected', duplex: true, hook: true, priority: 1, floor: 'idle');
+  Future<void> openPad(WidgetTester t) async {
+    await t.tap(find.bySemanticsLabel('Keypad').last);
+    await t.pump(const Duration(milliseconds: 300));
+  }
+
+  testWidgets('47 in-call keypad like a phone', (t) async {
+    await _shot(t, '47-call-keypad-dark', _model()..privateCall = talking(), const HomeScreen(initialTab: 1), b: Brightness.dark, act: openPad);
+  });
+
+  testWidgets('48 in-call keypad on a small PoC screen keeps hang up on screen', (t) async {
+    await _shot(t, '48-android-call-keypad-small', _model()..privateCall = talking(), const HomeScreen(initialTab: 1),
+        p: TargetPlatform.android, size: const Size(320, 533), act: (t) async {
+      await openPad(t);
+      final hangUp = t.getRect(find.bySemanticsLabel('Hang up').last);
+      final bar = t.getRect(find.byType(NavigationBar));
+      expect(hangUp.bottom, lessThanOrEqualTo(bar.top));
+      expect(t.getRect(find.text('#')).bottom, lessThan(hangUp.top));
+    });
+  });
+
+  testWidgets('49 incoming call on a small PoC screen', (t) async {
+    final m = _model()
+      ..privateCall = const PrivateCallInfo(id: 'p1', peer: 2320972, peerName: 'OE1ABC', incoming: true, state: 'ringing', duplex: true, hook: true, priority: 1, floor: 'idle');
+    await _shot(t, '49-android-incoming-small', m, const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 533));
+  });
+
+  testWidgets('50 new message: number, contacts, groups and callsigns', (t) async {
+    final m = _model();
+    m.contacts.radioIdForTest = {2320856: (callsign: 'OE4SXM', firstName: 'Sebastian'), 2320997: (callsign: 'OE4SXM', firstName: 'Sebastian'), 2320415: (callsign: 'OE3KLM', firstName: 'Karl')};
+    await _shot(t, '50-new-message', m, const NewMessageScreen(), act: (t) async {
+      await t.enterText(find.byType(EditableText), 'oe');
+      await t.pump();
+    });
+    await _shot(t, '51-android-new-message-small', m, const NewMessageScreen(), p: TargetPlatform.android, size: const Size(320, 533), act: (t) async {
+      await t.enterText(find.byType(EditableText), '2320');
+      await t.pump();
+    });
+  });
+
+  testWidgets('52 messages and contacts: unread counts, call and message buttons', (t) async {
+    final m = _model();
+    m.messages.addAll([
+      ChatMessage(peer: 2320972, outgoing: false, text: 'Bin am Kahlenberg', status: MsgStatus.received)..unread = true,
+      ChatMessage(peer: 2320972, outgoing: false, text: 'Wechsle auf TG 2324', status: MsgStatus.received)..unread = true,
+      ChatMessage(peer: 2320415, outgoing: false, text: '73!', status: MsgStatus.received)..unread = true,
+    ]);
+    await _shot(t, '52-messages-unread', m, const HomeScreen(initialTab: 3));
+    await _shot(t, '53-android-messages-unread', m, const HomeScreen(initialTab: 3), p: TargetPlatform.android);
+    await _shot(t, '54-android-contacts-small', m, const HomeScreen(initialTab: 2), p: TargetPlatform.android, size: const Size(320, 533));
+  });
 }

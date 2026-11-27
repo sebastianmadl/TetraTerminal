@@ -155,4 +155,36 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (c) async => c.method == 'ringtones' ? ['ring_chime.wav', 'other.wav'] : null);
     expect(await CallAlert().ringtones(), ['ring_chime.wav']);
   });
+
+  test('a received message alerts with the sender and counts as unread until its chat is opened', () async {
+    final m = TerminalModel(Settings()..issi = 2320997);
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Hello', immediate: false));
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Again', immediate: false));
+    m.handleEvent(const AppEvent.textReceived(from: 2320415, to: 2320997, text: 'Hi', immediate: false));
+    await settle();
+    final alerts = calls.where((c) => c.method == 'message').toList();
+    expect(alerts, hasLength(3));
+    expect((alerts.first.arguments as Map)['text'], 'Hello');
+    expect((alerts.first.arguments as Map)['peer'], 2629001);
+    expect((m.unreadMessages(), m.unreadMessages(2629001), m.unreadMessages(2320415)), (3, 2, 1));
+
+    m.conversationOpen(2629001, true);
+    expect((m.unreadMessages(), m.unreadMessages(2629001)), (1, 0));
+    // A message into the open chat is read right away.
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Still there?', immediate: false));
+    expect(m.unreadMessages(2629001), 0);
+    m.conversationOpen(2629001, false);
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Later', immediate: false));
+    expect(m.unreadMessages(2629001), 1);
+  });
+
+  test('message alerts can be switched off', () async {
+    final m = TerminalModel(Settings()
+      ..issi = 2320997
+      ..messageAlert = false);
+    m.handleEvent(const AppEvent.textReceived(from: 2629001, to: 2320997, text: 'Hello', immediate: false));
+    await settle();
+    expect(calls.where((c) => c.method == 'message'), isEmpty);
+    expect(m.unreadMessages(), 1);
+  });
 }

@@ -75,7 +75,8 @@ class GlassTabBar extends StatefulWidget {
   final List<(IconData, IconData, String)> items; // (icon, selected icon, label)
   final int index;
   final ValueChanged<int> onTap;
-  final Set<int> badges;
+  /// Tab index -> count shown on its icon.
+  final Map<int, int> badges;
 
   static const barHeight = 62.0;
 
@@ -180,8 +181,8 @@ class _GlassTabBarState extends State<GlassTabBar> {
                           onTap: () => widget.onTap(i),
                           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Badge(
-                              isLabelVisible: widget.badges.contains(i),
-                              smallSize: 8,
+                              isLabelVisible: (widget.badges[i] ?? 0) > 0,
+                              label: Text('${widget.badges[i] ?? 0}'),
                               child: Icon(i == active ? it.$2 : it.$1, size: 24, color: i == active ? scheme.primary : scheme.onSurface),
                             ),
                             const SizedBox(height: 2),
