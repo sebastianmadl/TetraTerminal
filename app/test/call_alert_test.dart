@@ -150,4 +150,9 @@ void main() {
     final picked = await CallAlert().pickRingtone(null);
     expect((picked?.uri, picked?.title), ('content://x', 'Bell'));
   });
+
+  test('iOS: only the bundled ring tones this build contains are offered', () async {
+    messenger.setMockMethodCallHandler(channel, (c) async => c.method == 'ringtones' ? ['ring_chime.wav', 'other.wav'] : null);
+    expect(await CallAlert().ringtones(), ['ring_chime.wav']);
+  });
 }

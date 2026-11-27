@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:poc_ptt/poc_ptt.dart';
 import 'package:provider/provider.dart';
 
 import '../model/terminal_model.dart';
@@ -28,6 +29,40 @@ class _HomeScreenState extends State<HomeScreen> {
   late int _tab = widget.initialTab;
   final _calls = GlobalKey<CallsScreenState>();
   final _contacts = GlobalKey<ContactsScreenState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _askKeyService());
+  }
+
+  /// PoC radio, first start: the PTT key and the knob only work with the
+  /// screen locked once the key service is on in the Accessibility settings.
+  /// Android does not let an app switch it on, so ask and open that page.
+  Future<void> _askKeyService() async {
+    if (!PocPtt.supported || !mounted) return;
+    final s = context.read<TerminalModel>().settings;
+    var enabled = false;
+    try {
+      enabled = await PocPtt.keyServiceEnabled();
+    } catch (_) {}
+    if (!mounted || !s.shouldAskKeyService(enabled: enabled)) return;
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Keys in the background'),
+        content: const Text('So that the PTT key and the knob also work with the screen locked or the app in the background, '
+            'switch on "TETRA Terminal PTT key" in the Accessibility settings. Android only lets you do this yourself.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Later')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Open settings')),
+        ],
+      ),
+    );
+    s.keyServiceAsked = true;
+    await s.save();
+    if (open == true) await PocPtt.openKeyServiceSettings();
+  }
 
   @override
   Widget build(BuildContext context) {

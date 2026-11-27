@@ -31,6 +31,18 @@ void main() {
     expect(s.basestation, isFalse);
   });
 
+  test('PoC radio: the background key service is asked for once', () {
+    Settings.isPocDevice = () => true;
+    final s = Settings()..applyPocDefaults();
+    expect(s.shouldAskKeyService(enabled: false), isTrue);
+    expect(s.shouldAskKeyService(enabled: true), isFalse);
+    s.keyServiceAsked = true;
+    expect(s.shouldAskKeyService(enabled: false), isFalse);
+    expect((Settings()..pocPttEnabled = false).shouldAskKeyService(enabled: false), isFalse);
+    Settings.isPocDevice = () => false;
+    expect((Settings()..pocPttEnabled = true).shouldAskKeyService(enabled: false), isFalse);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   // The audio plugin has no test implementation.
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

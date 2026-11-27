@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../model/settings.dart';
 import '../model/terminal_model.dart';
+import '../services/call_alert.dart';
 import '../services/version.dart';
 import '../ui/adaptive.dart';
 import '../ui/level_meter.dart';
@@ -285,6 +286,25 @@ class CallSettings extends StatelessWidget {
                 set(() => s.ringIncoming = v);
               },
             ),
+            if (isApple(context) && s.ringIncoming)
+              Tile(
+                title: 'Ring tone',
+                subtitle: CallAlert.bundledRingtones[s.ringtoneUri] ?? 'Ring tone of the iPhone',
+                onTap: () async {
+                  final found = await m.callAlert.ringtones();
+                  if (!context.mounted) return;
+                  final picked = await showActions<String>(context, title: 'Ring tone', actions: [
+                    const SheetAction('Ring tone of the iPhone', ''),
+                    for (final f in found) SheetAction(CallAlert.bundledRingtones[f]!, f),
+                  ]);
+                  if (picked == null) return;
+                  set(() {
+                    s.ringtoneUri = picked.isEmpty ? null : picked;
+                    s.ringtoneName = CallAlert.bundledRingtones[picked];
+                  });
+                  unawaited(m.callAlert.preview(s.ringtoneUri));
+                },
+              ),
             if (!isApple(context) && s.ringIncoming)
               Tile(
                 title: 'Ring tone',

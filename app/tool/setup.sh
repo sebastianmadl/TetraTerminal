@@ -85,6 +85,14 @@ grep -q FOREGROUND_SERVICE_LOCATION "$MANIFEST" || \
 GRADLE=$(ls android/app/build.gradle* | head -1)
 sed -i.bak -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$GRADLE" && rm -f "$GRADLE.bak"
 
+# iOS: ring tones for incoming calls go into the app bundle (needs the
+# xcodeproj gem, which comes with CocoaPods; skipped elsewhere).
+if ruby -e 'require "xcodeproj"' 2>/dev/null; then
+  ruby tool/ios_ringtones.rb ios ios_ringtones
+elif [ "$(uname)" = Darwin ]; then
+  echo "warning: xcodeproj gem not found, the iOS ring tones are not bundled"
+fi
+
 PLIST=ios/Runner/Info.plist
 # Edit the top-level dict only (a sed on "<dict>" would hit nested dicts too).
 python3 - "$PLIST" <<'PY'

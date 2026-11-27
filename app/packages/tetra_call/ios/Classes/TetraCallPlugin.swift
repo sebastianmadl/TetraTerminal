@@ -8,7 +8,7 @@ import UIKit
 /// app is running, in front or in the background; a terminated app is not
 /// woken up (that would need VoIP pushes).
 ///
-/// App -> native: incoming, connected, ended, answer, end.
+/// App -> native: incoming, connected, ended, answer, end, ringtones, preview.
 /// Native -> app: answer, end, mute, dtmf, audio.
 public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate {
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -23,6 +23,7 @@ public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate 
   /// Call id of the app -> CallKit call.
   private var calls: [String: UUID] = [:]
   private var answered: Set<String> = []
+  private var player: AVAudioPlayer?
 
   init(channel: FlutterMethodChannel) {
     self.channel = channel
@@ -31,18 +32,42 @@ public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate 
 
   /// Created on first use, so the app does not register with CallKit while the
   /// feature is switched off.
-  private func callProvider() -> CXProvider {
-    if let p = provider { return p }
+  /// [ringtone]: a sound file of the app bundle, nil for the iPhone's ring tone.
+  private func callProvider(ringtone: String?) -> CXProvider {
     let config = CXProviderConfiguration()
     config.supportsVideo = false
     config.maximumCallGroups = 1
     config.maximumCallsPerCallGroup = 1
     config.supportedHandleTypes = [.generic]
     config.includesCallsInRecents = true
+    if let name = ringtone, Bundle.main.url(forResource: name, withExtension: nil) != nil {
+      config.ringtoneSound = name
+    }
+    if let p = provider {
+      p.configuration = config
+      return p
+    }
     let p = CXProvider(configuration: config)
     p.setDelegate(self, queue: nil)
     provider = p
     return p
+  }
+
+  /// The ring tones found in the app bundle (ring_*.wav).
+  private func bundledRingtones() -> [String] {
+    (Bundle.main.urls(forResourcesWithExtension: "wav", subdirectory: nil) ?? [])
+      .map { $0.lastPathComponent }
+      .filter { $0.hasPrefix("ring_") }
+      .sorted()
+  }
+
+  /// Plays a ring tone once, for choosing one in the settings.
+  private func preview(_ name: String?) {
+    player?.stop()
+    player = nil
+    guard let name = name, let url = Bundle.main.url(forResource: name, withExtension: nil) else { return }
+    player = try? AVAudioPlayer(contentsOf: url)
+    player?.play()
   }
 
   private func id(of uuid: UUID) -> String? {
@@ -66,7 +91,8 @@ public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate 
       update.supportsDTMF = args["duplex"] as? Bool ?? false
       let uuid = UUID()
       calls[id] = uuid
-      callProvider().reportNewIncomingCall(with: uuid, update: update) { [weak self] error in
+      player?.stop()
+      callProvider(ringtone: args["ringtone"] as? String).reportNewIncomingCall(with: uuid, update: update) { [weak self] error in
         DispatchQueue.main.async {
           if error != nil { self?.calls.removeValue(forKey: id) }
           // false: the system did not take the call (Do Not Disturb, blocked);
@@ -89,6 +115,11 @@ public final class TetraCallPlugin: NSObject, FlutterPlugin, CXProviderDelegate 
     case "end":
       guard let uuid = calls[id] else { return result(false) }
       request(CXEndCallAction(call: uuid), result)
+    case "ringtones":
+      result(bundledRingtones())
+    case "preview":
+      preview(args["name"] as? String)
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }

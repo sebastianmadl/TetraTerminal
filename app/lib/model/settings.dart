@@ -351,6 +351,13 @@ class Settings {
   /// (the same limit as the compact layout).
   static const pocScreenHeight = 700.0;
 
+  /// PoC radio: the question to switch on the background key service was asked.
+  bool keyServiceAsked = false;
+
+  /// First start on a PoC radio with the hardware keys in use: ask once to
+  /// switch on the background key service ([enabled] = it already is).
+  bool shouldAskKeyService({required bool enabled}) => pocPttEnabled && !keyServiceAsked && !enabled && isPocDevice();
+
   /// Defaults for a PoC radio: hardware PTT instead of the on-screen buttons,
   /// and audio set for its loudspeaker and microphone.
   void applyPocDefaults() {
@@ -394,6 +401,7 @@ class Settings {
       ..liveActivity = j['liveActivity'] ?? true
       ..ringIncoming = j['ringIncoming'] ?? true
       ..ringtoneUri = j['ringtoneUri']
+      ..keyServiceAsked = j['keyServiceAsked'] ?? false
       ..ringtoneName = j['ringtoneName']
       ..pttToggle = j['pttToggle'] ?? false
       ..pttAutoStopSeconds = j['pttAutoStopSeconds'] ?? 60
@@ -476,6 +484,7 @@ class Settings {
         'liveActivity': liveActivity,
         'ringIncoming': ringIncoming,
         'ringtoneUri': ringtoneUri,
+        'keyServiceAsked': keyServiceAsked,
         'ringtoneName': ringtoneName,
         'pttToggle': pttToggle,
         'pttAutoStopSeconds': pttAutoStopSeconds,

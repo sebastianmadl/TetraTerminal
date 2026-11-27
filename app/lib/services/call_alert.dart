@@ -76,6 +76,25 @@ class CallAlert {
     return (uri: uri, title: '${r?['title'] ?? 'Ring tone'}');
   }
 
+  /// iOS: ring tones that ship with the app (file name -> label). The iPhone's
+  /// own ring tones cannot be chosen for calls of an app.
+  static const bundledRingtones = {
+    'ring_classic.wav': 'Classic bell',
+    'ring_twotone.wav': 'Two-tone',
+    'ring_chime.wav': 'Chime',
+    'ring_beacon.wav': 'Beacon',
+  };
+
+  /// iOS: the bundled ring tones this build really contains.
+  Future<List<String>> ringtones() async {
+    final found = await _call<List<Object?>>('ringtones', null);
+    if (found == null) return bundledRingtones.keys.toList();
+    return [for (final f in found) if (bundledRingtones.containsKey(f)) f as String];
+  }
+
+  /// iOS: plays a bundled ring tone once (null stops it).
+  Future<void> preview(String? name) => _call<void>('preview', {'name': name});
+
   /// The call was answered: stop ringing.
   Future<void> connected(String id) async {
     if (_shown != id) return;
