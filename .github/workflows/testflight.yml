@@ -111,7 +111,9 @@ jobs:
           KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
-          flutter build ios --config-only --release
+          # Flutter's own signing check only knows local certificates; xcodebuild
+          # signs below with the API key.
+          flutter build ios --config-only --release --no-codesign
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' -archivePath build/Runner.xcarchive \
