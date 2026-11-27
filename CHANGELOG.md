@@ -14,6 +14,7 @@ tests but still wait for a test on real hardware.
 - README: section "Voice codec and audio chain" lists what was changed in
   the ACELP codec and in the audio path around it compared with the
   original. The feature table renders as one table again.
+- Calls and messages are marked as checked on a device.
 
 ## 1.6.2 (2026-11-27)
 
@@ -81,9 +82,8 @@ tests but still wait for a test on real hardware.
   written in capitals, "Phone prefix" for the telephone prefix.
 - About: both authors listed under Developers.
 
-*(not yet verified on a device: Play Protect accepting the phone APK, in-app
-ringing on the P60, SDS tone and notification, Back / Quit app. Stored
-messages were checked on a device on 2026-11-27.)*
+*(Calls and messages were checked on a device on 2026-11-27. Not yet
+verified: Play Protect accepting the phone APK, Back / Quit app.)*
 
 ## 1.6.0 (2026-11-27)
 
@@ -121,9 +121,8 @@ messages were checked on a device on 2026-11-27.)*
 - CI: build files download as they are (no zip), named
   `TetraTerminal-<version>…`.
 
-*(not yet verified on a device: CallKit audio hand-over and ringing in the
-background, Android full-screen call and ring tone picker on the P60, bundled
-iOS tones, language chooser)*
+*(Incoming call ringing was checked on a device on 2026-11-27. Not yet
+verified: ring tone picker on the P60, bundled iOS tones, language chooser.)*
 
 ## 1.5.0 (2026-11-26)
 

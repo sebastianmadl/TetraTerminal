@@ -109,9 +109,8 @@ The pictures are rendered from the app's code with sample data
 | Voice codec fix (bit-exact ACELP encoder) and audio chain around the codec, see [below](#voice-codec-and-audio-chain) | ✅ in app |
 | iOS: Live Activity, Dynamic Island, widget, background audio, own microphone capture | ✅ in app |
 | PoC radios (Hytera P60): hardware PTT key, channel knob, status LED | ✅ in app |
-| Incoming private calls ring like a phone call (iOS CallKit, Android call notification), ring tone choice | 🧪 built, device test open |
-| Messages are kept across restarts | ✅ checked on a device |
-| Messages: new-message search, tone and notification, unread counters | 🧪 built, device test open |
+| Incoming private calls ring like a phone call (iOS CallKit, Android call notification), ring tone choice | ✅ checked on a device |
+| Messages: new-message search, tone and notification, unread counters, kept across restarts | ✅ checked on a device |
 | German and English | ✅ in app |
 
 "Live-tested" means two instances of the client exchanged it through a real
@@ -292,8 +291,9 @@ flutter test test_screenshots --update-goldens   # renders the screens to PNG
 ## Known gaps / next steps
 
 * **Device tests open** for the newest features, see the notes in
-  [CHANGELOG.md](CHANGELOG.md) (incoming call ringing, message alerts,
-  Back / Quit app on Android, Play Protect with the phone APK).
+  [CHANGELOG.md](CHANGELOG.md) (Back / Quit app on Android, Play Protect
+  with the phone APK, contacts search and speed dial). Calls and messages
+  were checked on a device on 2026-11-27.
 * **Android cannot bring the app to the front by itself** while the phone is
   unlocked and the app is in the background; a call shows as a heads-up
   notification there.
