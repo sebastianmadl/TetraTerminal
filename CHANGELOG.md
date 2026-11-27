@@ -9,6 +9,12 @@ chain, PoC radio support, phone-style calls and the messages rework.
 Entries marked *(not yet verified on a device)* compile and pass the automated
 tests but still wait for a test on real hardware.
 
+## Unreleased
+
+- README: section "Voice codec and audio chain" lists what was changed in
+  the ACELP codec and in the audio path around it compared with the
+  original. The feature table renders as one table again.
+
 ## 1.6.2 (2026-11-27)
 
 ### Contacts
@@ -141,11 +147,14 @@ iOS tones, language chooser)*
   (it was audible as hiss on PoC radios).
 
 ### Audio
-- Fixed the transmit chirp: the ETSI ACELP reference code relies on signed
-  overflow in `L_add` / `L_sub`, which clang at -O2 optimised away. The
-  encoder then produced a bitstream that radios played as short bursts
-  around 2.7 kHz. Arithmetic is done unsigned now, the codec builds with
-  `-fwrapv`, and a test pins the encoder output to the reference.
+- **Codec change:** fixed the transmit chirp. The ETSI ACELP reference code
+  (`tetra_core/third_party/tetra-codec`) relies on signed overflow in
+  `L_add` / `L_sub`, which clang at -O2 optimised away. The encoder then
+  produced a bitstream that radios played as short bursts around 2.7 kHz.
+  The two functions do their arithmetic unsigned now (same result as the
+  reference), the codec builds with `-fwrapv`, and a test pins the encoder
+  output to the reference bitstream. Nothing else in the codec was changed;
+  the decoder is untouched.
 - Transmit noise suppression through speexdsp in the Rust core.
 - Receive audio: boost, level control target, maximum level, test tone.
 

@@ -102,12 +102,11 @@ The pictures are rendered from the app's code with sample data
 | TETRA ACELP voice (ETSI EN 300 395-2), STE framing | ✅ live-tested |
 | Talkgroup list with scan, DTMF in private calls | ✅ in app |
 | Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | ✅ live-tested |
-
 | Connection profiles (several servers / ISSIs), passwords in the keychain | ✅ in app |
 | Contacts with search across the RadioID.net list, favourites and speed dial (`*1` on the keypad), call log | ✅ in app |
 | Server extensions when offered: `mni` (Multi Network), `group-access` | ✅ in app |
 | Radio screen with scan hold, level meter, last talkers | ✅ in app |
-| Audio chain: transmit level control, 300 Hz high-pass, noise suppression (speexdsp), receive level control, transmit buffer | ✅ in app |
+| Voice codec fix (bit-exact ACELP encoder) and audio chain around the codec, see [below](#voice-codec-and-audio-chain) | ✅ in app |
 | iOS: Live Activity, Dynamic Island, widget, background audio, own microphone capture | ✅ in app |
 | PoC radios (Hytera P60): hardware PTT key, channel knob, status LED | ✅ in app |
 | Incoming private calls ring like a phone call (iOS CallKit, Android call notification), ring tone choice | 🧪 built, device test open |
@@ -117,6 +116,57 @@ The pictures are rendered from the app's code with sample data
 "Live-tested" means two instances of the client exchanged it through a real
 brew-server, with Digest auth on (8/8 scenarios, no
 server warnings).
+
+## Voice codec and audio chain
+
+What differs from the original app (up to 1.3.0), in the order the audio
+takes.
+
+### The codec itself
+
+The voice codec is the ETSI TETRA ACELP reference code (EN 300 395-2),
+vendored in `tetra_core/third_party/tetra-codec`, the same code brew-server
+uses. Two functions of it were changed, nothing else:
+
+- **`L_add` and `L_sub`** (`source/tetra-codec-impl.c`) add and subtract in
+  unsigned 32 bit instead of signed. The reference code adds in signed
+  32 bit and tests for the overflow afterwards. Signed overflow is undefined
+  in C, so clang at `-O2` (Xcode, Android NDK) removed the saturation. The
+  encoder then produced a bitstream that differs from the reference, and a
+  radio played it as short full-scale bursts around 2.7 kHz (the "chirp" on
+  transmit). The result of the two functions is the same as in the
+  reference.
+- The codec is built with **`-fwrapv`** (`tetra_core/build.rs`) as a second
+  guard for the rest of the reference code.
+- A test (`encoder_is_bit_exact_with_the_reference_build` in
+  `tetra_core/src/codec.rs`) encodes a fixed signal and compares the
+  bitstream with the one of the reference built with gcc `-O0`.
+
+The decoder and the 60 ms STE framing are unchanged.
+
+### Before the encoder (transmit)
+
+| Step | Original | Now |
+|---|---|---|
+| Microphone | `record` plugin at 16 kHz, decimated to 8 kHz | the same on Android; on iOS an own capture (`app/packages/tetra_mic`) whose converter is rebuilt when the audio hardware changes mid-recording |
+| High-pass | none | 4th-order Butterworth at 300 Hz, the lower edge of TETRA speech |
+| Noise suppression | none | speexdsp preprocessor in the Rust core (`tetra_core/src/denoise.rs`), denoiser only, switchable, off by default (on in the PoC radio preset) |
+| Level | fixed gain and a look-ahead limiter | automatic level control to about -24 dBov that only follows speech, with the gain setting as a trim; a manual mode uses the gain alone. The limiter stays |
+| Pacing | one frame every 60 ms as soon as it is encoded | frames are held before sending starts and after an underrun (240 ms by default, 180 ms to about 1 s), and queued frames are dropped when the call ends |
+
+speexdsp is vendored unmodified in `tetra_core/third_party/speexdsp`
+(BSD licence).
+
+### After the decoder (receive)
+
+| Step | Original | Now |
+|---|---|---|
+| Level | none | level control to a target (-21 dBov by default) with 30 ms look-ahead, a maximum level and an optional boost |
+| Sample rate | 8 kHz handed to the system | on iOS converted to 48 kHz in the app (polyphase windowed-sinc, cut-off 3.4 kHz) |
+| Output | call volume | media volume for group calls and PTT; the voice-call mode only in full-duplex calls. Loudspeaker / earpiece switch |
+
+"Record my transmissions" under Settings > Audio saves the microphone signal
+and the encoder input as WAV, to check the chain.
 
 ## Layout
 
