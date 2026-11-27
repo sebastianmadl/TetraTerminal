@@ -120,7 +120,17 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath ~/private_keys/AuthKey_$KEY_ID.p8 \
             -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER" \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+          || {
+            # A development profile needs a registered device in the team. Without
+            # one, archive unsigned and let the export sign for distribution.
+            echo "::warning::Signed archive failed (no device in the team?). Archiving unsigned; the export signs it."
+            rm -rf build/Runner.xcarchive
+            xcodebuild archive \
+              -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+              -destination 'generic/platform=iOS' -archivePath build/Runner.xcarchive \
+              DEVELOPMENT_TEAM="$TEAM" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          }
 
       - name: Upload to TestFlight
         working-directory: app
