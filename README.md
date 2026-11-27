@@ -1,8 +1,15 @@
 # TETRA Brew Terminal
 
-A cross-platform TETRA terminal app (Android first, iOS second) that connects
-to [brew-server](https://github.com/ysamouhos/brew-server) over the Brew
-(TETRA Homebrew) protocol.
+A TETRA terminal app for iOS and Android (phones and PoC radios such as the
+Hytera P60) that connects to
+[brew-server](https://github.com/ysamouhos/brew-server) over the Brew
+(TETRA Homebrew) protocol. It logs in as a Terminal and stays compatible with
+TetraPack servers.
+
+The original app was written by [ysamouhos](https://github.com/ysamouhos)
+(up to 1.3.0). From 1.4.0 on it was rebuilt and extended in this fork by
+[sebastianmadl](https://github.com/sebastianmadl) (OE4SXM). What changed in
+each version is in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Status |
 |---|---|
@@ -18,8 +25,19 @@ to [brew-server](https://github.com/ysamouhos/brew-server) over the Brew
 | Talkgroup list with scan, DTMF in private calls | ✅ in app |
 | Savox BTH-101 Bluetooth PTT headset (Android: SPP PTT, SCO audio, volume) | ✅ live-tested |
 
+| Connection profiles (several servers / ISSIs), passwords in the keychain | ✅ in app |
+| Contacts, call log, RadioID.net callsign names | ✅ in app |
+| Server extensions when offered: `mni` (Multi Network), `group-access` | ✅ in app |
+| Radio screen with scan hold, level meter, last talkers | ✅ in app |
+| Audio chain: transmit level control, 300 Hz high-pass, noise suppression (speexdsp), receive level control, transmit buffer | ✅ in app |
+| iOS: Live Activity, Dynamic Island, widget, background audio, own microphone capture | ✅ in app |
+| PoC radios (Hytera P60): hardware PTT key, channel knob, status LED | ✅ in app |
+| Incoming private calls ring like a phone call (iOS CallKit, Android call notification), ring tone choice | 🧪 built, device test open |
+| Messages: new-message search, tone and notification, unread counters, kept across restarts | 🧪 built, device test open |
+| German and English | ✅ in app |
+
 "Live-tested" means two instances of the client exchanged it through a real
-brew-server built from your repo, with Digest auth on (8/8 scenarios, no
+brew-server, with Digest auth on (8/8 scenarios, no
 server warnings).
 
 ## Layout
@@ -32,11 +50,24 @@ tetra_core/      Rust: everything protocol, call and codec related (shared by bo
   src/codec.rs      ACELP encoder/decoder + 60 ms framing (vendored ETSI codec, same as server)
   src/transport.rs  Digest auth, discovery, TLS (rustls + ring), WebSocket upgrade
   src/client.rs     The running terminal: reconnect, re-registration, SDS bookkeeping, audio
+  src/control.rs    Basestation control channel (hidden in the app)
+  src/denoise.rs    Transmit noise suppression (speexdsp)
   src/api.rs        Flat API for flutter_rust_bridge
   tests/            Unit tests + end-to-end test against a mock Brew server
   examples/live_two_terminals.rs   Live test against a real brew-server
-app/packages/headset_ptt/  Android plugin: BT headset PTT over SPP, SCO routing
-app/             Flutter UI (Talkgroups + PTT, Calls, Messages, Settings)
+app/             Flutter UI (Radio, Calls, Messages, Contacts, Settings)
+  lib/model/        TerminalModel, settings, contacts
+  lib/screens/      One file per tab, connection form, settings pages
+  lib/services/     Audio in/out, level control, call alerts, location
+  lib/ui/           Shared widgets, theme, German texts (l10n_de.dart)
+  tool/             setup.sh, Android variant switch, iOS ring tones
+  ios_widgets/      Live Activity and widget extension
+  packages/
+    headset_ptt/    Android: Bluetooth headset PTT over SPP, SCO routing
+    poc_ptt/        Android: PoC radio PTT key, knob, LED, background key service
+    tetra_call/     Incoming call ringing (CallKit / Android), message alerts
+    tetra_live/     Live Activity (iOS), status notification and service (Android)
+    tetra_mic/      iOS microphone capture
 ```
 
 All TETRA logic lives in Rust, so Android and iOS behave identically. The
@@ -52,30 +83,51 @@ cd app
 flutter run            # with an Android phone attached
 ```
 
-### iOS (no Mac needed)
+### Builds from GitHub Actions (no Mac needed)
 
-`.github/workflows/ios.yml` builds the app on GitHub's macOS runners on every
-push to `main` (or by hand from the Actions tab). Each run produces:
+`.github/workflows/android.yml` and `ios.yml` build the app on every push to
+`main`, or by hand from the Actions tab for any branch. The files download as
+they are:
 
-* `tetra-terminal-unsigned-ipa`: install it with Sideloadly or AltStore from
-  Windows, signed with a free Apple ID (re-sign every 7 days), or with your own
-  certificate once you have an Apple Developer account.
-* `tetra-terminal-simulator`: `Runner.app` for the iOS Simulator.
+| File | For |
+|---|---|
+| `TetraTerminal-<version>.apk` | Android phones (all CPU types) |
+| `TetraTerminal-<version>-arm64.apk`, `-arm32.apk` | the same, smaller, one CPU type each |
+| `TetraTerminal-<version>-poc.apk` | PoC radios (with the background key service for the PTT key) |
+| `TetraTerminal-<version>.ipa` | iPhone: install with Sideloadly or AltStore, signed with a free Apple ID (re-sign every 7 days) or your own certificate |
+| `TetraTerminal-simulator` | `Runner.app` for the iOS Simulator |
+
+The normal APKs leave out the Accessibility key service, because Google Play
+Protect blocks sideloaded apps that declare one. Use the `-poc` file only on
+PoC radios.
+
+Android test builds are signed with a fixed key when the repository has the
+secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`; then each build installs over
+the previous one. Without them every run signs with its own debug key and
+Android refuses the update. `release.yml` builds both platforms, tags the
+commit and publishes a GitHub Release.
 
 ### First run
 
-In **Settings**, enter the server URL (e.g. `https://your-host:9000/brew/`),
-the username and password from `[auth.users]` in `brew-server.toml`, and
-your ISSI. Then add talkgroups (GSSIs) on the **Talkgroups** tab.
+Choose the language, then tap the connection pill at the top and add a
+connection: server URL (e.g. `https://your-host:9000/brew/`), the username and
+password from `[auth.users]` in `brew-server.toml`, your ISSI and your call.
+Add talkgroups (GSSIs) under **Contacts > Groups**.
 
-## Test the core
+## Tests
 
 ```bash
 cd tetra_core
-cargo test                                   # 23 unit tests + end-to-end session
+cargo test                                   # unit tests + end-to-end session against a mock server
 
 # against a running brew-server with two [auth.users] entries:
 cargo run --example live_two_terminals -- http://127.0.0.1:9100/brew/ 2040001:pw1 2040002:pw2 91
+
+cd ../app
+flutter analyze --no-fatal-infos
+flutter test                                 # app logic and widgets
+flutter test test_screenshots --update-goldens   # renders the screens to PNG
 ```
 
 ## Protocol notes
@@ -103,19 +155,21 @@ cargo run --example live_two_terminals -- http://127.0.0.1:9100/brew/ 2040001:pw
 
 ## Known gaps / next steps
 
-* **Flutter code was written but not compiled here** (no Flutter SDK in my
-  build environment). The Rust core is fully built and tested. Expect a
-  couple of small fixes on the first `flutter analyze`, most likely around
-  generated binding names and the `record` / `flutter_pcm_sound` plugin APIs,
-  which are isolated in `lib/services/audio_io.dart`.
+* **Device tests open** for the newest features, see the notes in
+  [CHANGELOG.md](CHANGELOG.md) (incoming call ringing, message alerts,
+  Back / Quit app on Android, Play Protect with the phone APK).
+* **Android cannot bring the app to the front by itself** while the phone is
+  unlocked and the app is in the background; a call shows as a heads-up
+  notification there.
 * **Half-duplex private floor against real radios**: verified client-to-client
   through brew-server. Whether a Basestation-attached radio uses the
   `SIMPLEX_GRANTED`/`SIMPLEX_IDLE` grant fields the same way is unverified.
-* **Background operation**: calls are received while the app is open.
-  Receiving with the screen off needs an Android foreground service
-  (microphone type) and, on iOS, the PushToTalk framework.
-* **Hardware PTT keys** on rugged phones are not mapped yet.
-* **Password storage** uses shared_preferences; switch to
-  flutter_secure_storage before release.
-* **ACELP codec licensing**: the vendored ETSI reference codec comes from
-  your brew-server repo. Check ETSI's IPR terms before publishing to an app store.
+* **ACELP codec licensing**: the vendored ETSI reference codec comes from the
+  brew-server repo. Check ETSI's IPR terms before publishing to an app store.
+
+## Credits
+
+* [ysamouhos](https://github.com/ysamouhos): original app and Rust core,
+  brew-server.
+* [sebastianmadl](https://github.com/sebastianmadl) (OE4SXM): rebuild from
+  1.4.0 on (interface, iOS, audio chain, PoC radios, calls, messages).
