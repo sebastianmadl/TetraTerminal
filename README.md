@@ -1,15 +1,93 @@
-# TETRA Brew Terminal
+<p align="center">
+  <img src="docs/logo.png" width="160" alt="TETRA Terminal logo">
+</p>
 
-A TETRA terminal app for iOS and Android (phones and PoC radios such as the
-Hytera P60) that connects to
-[brew-server](https://github.com/ysamouhos/brew-server) over the Brew
-(TETRA Homebrew) protocol. It logs in as a Terminal and stays compatible with
-TetraPack servers.
+<h1 align="center">TETRA Terminal</h1>
+
+<p align="center">
+  Your phone or PoC radio as a TETRA terminal.<br>
+  Group calls with push-to-talk, private calls, text messages and location,
+  over the Brew (TETRA Homebrew) protocol.
+</p>
+
+<p align="center">
+  <a href="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/ios.yml"><img src="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/ios.yml/badge.svg" alt="iOS build"></a>
+  <a href="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/android.yml"><img src="https://github.com/sebastianmadl/tetra-client-ios/actions/workflows/android.yml/badge.svg" alt="Android build"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/01-radio-heard.png" width="19%" alt="Radio screen while a station is heard">
+  <img src="docs/screenshots/02-radio-talking-dark.png" width="19%" alt="Radio screen while transmitting, dark">
+  <img src="docs/screenshots/47-call-keypad-dark.png" width="19%" alt="Private call with keypad">
+  <img src="docs/screenshots/57-contacts-favourites.png" width="19%" alt="Contacts with favourites and speed dial">
+  <img src="docs/screenshots/52-messages-unread.png" width="19%" alt="Messages with unread counters">
+</p>
+
+TETRA Terminal runs on iPhones, Android phones and Android PoC radios such as
+the Hytera P60. It connects to a
+[brew-server](https://github.com/ysamouhos/brew-server) and logs in as a
+Terminal, the same way a radio behind a base station does, and stays
+compatible with TetraPack servers. Everything protocol, call and codec related
+lives in a shared Rust core, so both platforms behave the same.
 
 The original app was written by [ysamouhos](https://github.com/ysamouhos)
 (up to 1.3.0). From 1.4.0 on it was rebuilt and extended in this fork by
 [sebastianmadl](https://github.com/sebastianmadl) (OE4SXM). What changed in
 each version is in [CHANGELOG.md](CHANGELOG.md).
+
+## What it does
+
+**Radio**
+- Group calls with push-to-talk: on-screen button (hold or toggle), a
+  headset key or the hardware PTT key of a PoC radio.
+- Talkgroup list with scan. A scanned group is held after the call so PTT
+  answers there.
+- Emergency call (SOS), call priorities and pre-emption.
+- Who is talking, with callsign names from your contacts, from the radio or
+  from the RadioID.net list, and the last talkers on the radio screen.
+
+**Calls**
+- Private calls, full or half duplex, ringing or direct.
+- An incoming call rings like a phone call: the system call screen on iOS, a
+  full-screen call on Android.
+- Phone-style keypad, call log, and speed dial for favourites (`*1`).
+- Phone calls through the server's SIP gateway.
+
+**Messages and location**
+- Text messages (SDS) to radios and groups with delivery reports and flash
+  messages, kept across restarts, with a tone, a notification and unread
+  counters.
+- LIP location reports, sent and received, also in the background.
+
+**Contacts**
+- Own contacts with favourites; one search across your contacts and the
+  RadioID.net callsign list, with a call and a message button on every row.
+
+**Made for daily use**
+- Several connection profiles (servers and ISSIs), switched with one tap.
+- Runs in the background: calls come in with the screen locked. On iOS a Live
+  Activity shows group and talker on the Lock Screen and in the Dynamic
+  Island.
+- Audio tuned for radio: automatic transmit level, noise suppression, receive
+  level control.
+- Light and dark, German and English.
+
+### On Android and PoC radios
+
+<p align="center">
+  <img src="docs/screenshots/08-android-radio.png" width="24%" alt="Radio screen on Android">
+  <img src="docs/screenshots/27-android-radio-small.png" width="24%" alt="Radio screen on the small display of a PoC radio">
+  <img src="docs/screenshots/62-android-keypad-speed-dial-small.png" width="24%" alt="Keypad with speed dial on a PoC radio">
+</p>
+
+On a PoC radio the app uses the hardware PTT key, the channel knob (it
+announces the chosen group) and the status LED, and the layout fits the small
+display. The Hytera P60 works without teaching keys.
+
+The pictures are rendered from the app's code with sample data
+(`flutter test test_screenshots --update-goldens`).
+
+## Status
 
 | Feature | Status |
 |---|---|
