@@ -161,6 +161,13 @@ cd app
 flutter run            # with an Android phone attached
 ```
 
+### Download
+
+Finished builds are on the
+[Releases page](https://github.com/sebastianmadl/tetra-client-ios/releases),
+with a note on which file is for which device. The iPhone build is unsigned
+and has to be sideloaded.
+
 ### Builds from GitHub Actions (no Mac needed)
 
 `.github/workflows/android.yml` and `ios.yml` build the app on every push to

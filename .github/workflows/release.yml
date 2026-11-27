@@ -138,10 +138,18 @@ jobs:
 
   ios:
     needs: version
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      # Same build as ios.yml: Xcode 26 for the Live Activity, the widget
+      # extension, and a fallback without it so the IPA is always produced.
+      - name: Select Xcode
+        continue-on-error: true
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$x" ]; then sudo xcode-select -s "$x"; fi
+          xcodebuild -version
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -171,14 +179,42 @@ jobs:
           sed -i '' -E "s/^# *platform :ios.*/platform :ios, '15.0'/" ios/Podfile
           grep -q "^platform :ios" ios/Podfile || { printf "platform :ios, '15.0'\n" | cat - ios/Podfile > ios/Podfile.new && mv ios/Podfile.new ios/Podfile; }
           (cd ios && pod install --repo-update)
-      - name: Build IPA (unsigned)
+      - name: Live Activity + home screen widget extension
+        continue-on-error: true
+        working-directory: app
+        run: |
+          cp -R ios ../ios-without-widgets
+          bash ios_widgets/install.sh
+      - name: Build for device (unsigned)
+        id: device
+        continue-on-error: true
         working-directory: app
         run: |
           flutter build ios --release --no-codesign \
             --build-name ${{ needs.version.outputs.name }} --build-number ${{ needs.version.outputs.number }}
+      - name: Build for device without the widget extension (fallback)
+        if: steps.device.outcome == 'failure'
+        working-directory: app
+        run: |
+          echo "::warning::The build with the Live Activity / widget extension failed (see the step above). Building the app without it."
+          rm -rf ios build/ios && cp -R ../ios-without-widgets ios
+          flutter build ios --release --no-codesign \
+            --build-name ${{ needs.version.outputs.name }} --build-number ${{ needs.version.outputs.number }}
+      - name: Package IPA
+        working-directory: app
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          if [ -d "$APP/PlugIns/TetraWidgets.appex" ]; then
+            # Ad-hoc signature carrying the App Group entitlements, so tools that
+            # re-sign the IPA (Sideloadly, AltStore) can keep them for the widget.
+            ( set +e
+              for f in "$APP"/Frameworks/*; do codesign --force --sign - "$f"; done
+              codesign --force --sign - --entitlements ios/TetraWidgets/TetraWidgets.entitlements "$APP/PlugIns/TetraWidgets.appex" &&
+              codesign --force --sign - --entitlements ios/Runner/Runner.entitlements "$APP" ) || echo "::warning::Ad-hoc signing failed; the IPA is unsigned."
+          fi
           V=${{ needs.version.outputs.name }}
           mkdir -p ../dist/Payload
-          cp -R build/ios/iphoneos/Runner.app ../dist/Payload/
+          cp -R "$APP" ../dist/Payload/
           (cd ../dist && zip -qr TetraTerminal-$V-ios-unsigned.ipa Payload && rm -rf Payload)
           ls -la ../dist
       - uses: actions/upload-artifact@v4
@@ -197,17 +233,18 @@ jobs:
           merge-multiple: true
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      # Which file is for which device, how to install, and the changelog
+      # section of this version.
+      - name: Release notes
+        run: python3 app/tool/release_notes.py "${{ needs.version.outputs.name }}" | tee notes.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: TETRA Terminal ${{ needs.version.outputs.name }}
           target_commitish: ${{ github.sha }}
           prerelease: ${{ inputs.prerelease || contains(needs.version.outputs.name, '-') }}
-          generate_release_notes: true
           fail_on_unmatched_files: true
-          body: |
-            **Android:** install `TetraTerminal-${{ needs.version.outputs.name }}-android-arm64.apk` on modern phones (`-universal` works everywhere, `-arm32` for older devices). PoC radios such as the Hytera P60 take `-android-poc.apk`, the only build with the background key service.
-            **iOS:** `TetraTerminal-${{ needs.version.outputs.name }}-ios-unsigned.ipa`, install with Sideloadly / AltStore (re-signed with your Apple ID).
+          body_path: notes.md
           files: |
             dist/*.apk
             dist/*.ipa
