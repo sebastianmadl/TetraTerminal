@@ -59,6 +59,7 @@ class TetraCallPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHa
                     sub = call.argument<String>("sub"),
                     emergency = call.argument<Boolean>("emergency") ?: false,
                     ringtone = call.argument<String>("ringtone"),
+                    labels = call.argument<List<String>>("labels"),
                 )
                 result.success(shown)
             }

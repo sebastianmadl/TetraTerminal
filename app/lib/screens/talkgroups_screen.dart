@@ -6,6 +6,7 @@ import '../model/contacts.dart';
 import '../model/settings.dart';
 import '../model/terminal_model.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/level_meter.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
@@ -24,7 +25,7 @@ class TalkgroupsScreen extends StatelessWidget {
     final tgs = m.settings.talkgroups;
     final scheme = Theme.of(context).colorScheme;
     final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
-    final title = m.settings.name.isNotEmpty ? m.settings.name : (m.settings.issi > 0 ? 'ISSI ${m.settings.issi}' : 'Radio');
+    final title = m.settings.name.isNotEmpty ? m.settings.name : (m.settings.issi > 0 ? 'ISSI ${m.settings.issi}' : tr('Radio'));
 
     final floating = m.showSoftPtt || m.settings.showSosButton || m.settings.showSpeakerButton;
     final bottomHeight = !m.showSoftPtt ? 56.0 : (compact ? 112.0 : 150.0);
@@ -51,11 +52,11 @@ class TalkgroupsScreen extends StatelessWidget {
               child: Column(children: [
                 Icon(CupertinoIcons.person_3, size: 44, color: scheme.outline),
                 const SizedBox(height: 12),
-                Text('No talkgroups yet', style: Theme.of(context).textTheme.titleMedium),
+                Tx('No talkgroups yet', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
-                Text('Add the groups (GSSI) you want to talk and listen on.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                Tx('Add the groups (GSSI) you want to talk and listen on.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: () => editTalkgroup(context, m, null), child: const Text('Add talkgroup')),
+                FilledButton(onPressed: () => editTalkgroup(context, m, null), child: const Tx('Add talkgroup')),
               ]),
             ),
           )
@@ -104,7 +105,7 @@ class GroupPicker extends StatelessWidget {
     final scanOn = m.settings.scanMode;
     return Semantics(
       button: true,
-      label: 'Talkgroup ${tg?.name ?? 'none'}. Scan ${scanOn ? 'on' : 'off'}. Tap to change',
+      label: tr('Talkgroup {0}. Scan {1}. Tap to change', [tg?.name ?? tr('none'), tr(scanOn ? 'on' : 'off')]),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
@@ -173,8 +174,8 @@ class _GroupMenu extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Scan mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  Text(scanOn ? 'You also hear the groups switched on below' : 'You only hear the selected group', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const Tx('Scan mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(tr(scanOn ? 'You also hear the groups switched on below' : 'You only hear the selected group'), style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 ]),
               ),
               Switch.adaptive(value: scanOn, onChanged: m.setScanMode),
@@ -185,9 +186,9 @@ class _GroupMenu extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           decoration: BoxDecoration(color: scheme.surfaceContainerHigh.withValues(alpha: .45), border: Border(top: hair, bottom: hair)),
           child: Row(children: [
-            Text('SELECT GROUP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: scheme.onSurfaceVariant)),
+            Tx('SELECT GROUP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: scheme.onSurfaceVariant)),
             const Spacer(),
-            Text('SCAN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: scheme.onSurfaceVariant)),
+            Tx('SCAN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .5, color: scheme.onSurfaceVariant)),
           ]),
         ),
         Flexible(
@@ -205,7 +206,7 @@ class _GroupMenu extends StatelessWidget {
               height: 46,
               alignment: Alignment.center,
               decoration: BoxDecoration(border: Border(top: hair)),
-              child: Text('Edit groups', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: scheme.primary)),
+              child: Tx('Edit groups', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: scheme.primary)),
             ),
           ),
       ]),
@@ -226,8 +227,8 @@ class _GroupMenuRow extends StatelessWidget {
     final active = m.groupActivity[t.gssi];
     final note = [
       if (t.otherNetwork) m.networkName(t.mcc, t.mnc),
-      if (access == GroupAccess.listen) 'listen only',
-      if (access == GroupAccess.refused) 'not allowed',
+      if (access == GroupAccess.listen) tr('listen only'),
+      if (access == GroupAccess.refused) tr('not allowed'),
     ].join(' · ');
     return Opacity(
       opacity: access == GroupAccess.refused ? .45 : 1,
@@ -254,7 +255,7 @@ class _GroupMenuRow extends StatelessWidget {
             Text('TG ${t.gssi}', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontFeatures: const [FontFeature.tabularFigures()])),
             const SizedBox(width: 6),
             Semantics(
-              label: 'Scan ${t.name}',
+              label: tr('Scan {0}', [t.name]),
               child: Transform.scale(
                 scale: .8,
                 child: Switch.adaptive(
@@ -294,11 +295,11 @@ class LastTalkers extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(Tokens.gutter + 4, 18, Tokens.gutter + 4, 8),
-        child: Text('LAST TALKERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .6, color: scheme.onSurfaceVariant)),
+        child: Tx('LAST TALKERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: .6, color: scheme.onSurfaceVariant)),
       ),
       _Card(
         child: rows.isEmpty
-            ? Padding(padding: const EdgeInsets.all(16), child: Text('Nobody has talked yet.', style: dim))
+            ? Padding(padding: const EdgeInsets.all(16), child: Tx('Nobody has talked yet.', style: dim))
             : Column(children: [
                 for (final (i, e) in rows.indexed)
                   Container(
@@ -310,7 +311,7 @@ class LastTalkers extends StatelessWidget {
                       Expanded(
                         flex: 5,
                         child: Text(
-                          e.kind == CallKind.groupTalked ? 'You' : m.nameOf(e.issi, sentName: e.sentName),
+                          e.kind == CallKind.groupTalked ? tr('You') : m.nameOf(e.issi, sentName: e.sentName),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: e.emergency ? Tokens.emergency : scheme.onSurface),
@@ -358,11 +359,11 @@ class TalkgroupList extends StatelessWidget {
         child: Column(children: [
           Icon(CupertinoIcons.person_3, size: 44, color: scheme.outline),
           const SizedBox(height: 12),
-          Text('No talkgroups yet', style: Theme.of(context).textTheme.titleMedium),
+          Tx('No talkgroups yet', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
-          Text('Add the groups (GSSI) you want to talk and listen on.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+          Tx('Add the groups (GSSI) you want to talk and listen on.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 12),
-          FilledButton(onPressed: () => editTalkgroup(context, m, null), child: const Text('Add talkgroup')),
+          FilledButton(onPressed: () => editTalkgroup(context, m, null), child: const Tx('Add talkgroup')),
         ]),
       );
     }
@@ -386,7 +387,7 @@ class TalkgroupList extends StatelessWidget {
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(Tokens.gutter + 4, 8, Tokens.gutter + 4, 0),
-        child: Text('Tap a group to edit or remove it. Drag the handle to change the order, which the channel knob follows. The switch is the scan switch: with it on you also hear that group while scan mode is on. Off does not disable the group, you can still select it and talk there.',
+        child: Tx('Tap a group to edit or remove it. Drag the handle to change the order, which the channel knob follows. The switch is the scan switch: with it on you also hear that group while scan mode is on. Off does not disable the group, you can still select it and talk there.',
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
       ),
     ]);
@@ -408,8 +409,8 @@ class _TalkgroupRow extends StatelessWidget {
       if (selected) 'selected',
       if (t.otherNetwork) m.networkName(t.mcc, t.mnc),
       if (t.dgna) 'DGNA',
-      if (access == GroupAccess.listen) 'listen only',
-      if (access == GroupAccess.refused) 'not allowed',
+      if (access == GroupAccess.listen) tr('listen only'),
+      if (access == GroupAccess.refused) tr('not allowed'),
     ].join(' · ');
 
     return Opacity(
@@ -419,10 +420,10 @@ class _TalkgroupRow extends StatelessWidget {
         subtitle: subtitle,
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
           // Named, so it is not taken for "group on/off".
-          Text('Scan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .3, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Tx('Scan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: .3, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(width: 6),
           Semantics(
-            label: 'Scan ${t.name}',
+            label: tr('Scan {0}', [t.name]),
             child: Switch.adaptive(
               value: t.scan,
               onChanged: (v) {
@@ -435,7 +436,7 @@ class _TalkgroupRow extends StatelessWidget {
           ReorderableDragStartListener(
             index: index,
             child: Semantics(
-              label: 'Move ${t.name}',
+              label: tr('Move {0}', [t.name]),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 10, 2, 10),
                 child: Icon(CupertinoIcons.line_horizontal_3, size: 22, color: Theme.of(context).colorScheme.outline),
@@ -486,7 +487,7 @@ Future<void> editTalkgroup(BuildContext context, TerminalModel m, Talkgroup? exi
           onTap: () async {
             final picked = await showActions<(int, int)>(ctx, title: 'Network of this group', actions: [
               const SheetAction('Home network', (0, 0)),
-              for (final n in nets.where((n) => !n.own)) SheetAction('${n.name}${n.up ? '' : ' (offline)'}', (n.mcc, n.mnc)),
+              for (final n in nets.where((n) => !n.own)) SheetAction('${n.name}${n.up ? '' : ' (${tr('offline')})'}', (n.mcc, n.mnc)),
             ]);
             if (picked != null) setState(() => net = picked);
           },

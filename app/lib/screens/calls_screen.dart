@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../model/terminal_model.dart';
 import '../src/rust/api.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/theme.dart';
 import '../model/contacts.dart';
 import 'contacts_screen.dart';
@@ -54,8 +55,8 @@ class CallsScreenState extends State<CallsScreen> {
     final text = Theme.of(context).textTheme;
     final prefix = m.settings.externalPrefix;
     final options = _external
-        ? 'Phone via the server\'s SIP gateway · P$_priority'
-        : '${_duplex ? 'Full duplex' : 'Half duplex'} · ${_hook ? 'rings' : 'direct'} · P$_priority${_priority >= 15 ? ' emergency' : ''}';
+        ? tr('Phone via the server\'s SIP gateway · P{0}', [_priority])
+        : '${tr(_duplex ? 'Full duplex' : 'Half duplex')} · ${tr(_hook ? 'rings' : 'direct')} · P$_priority${_priority >= 15 ? ' ${tr('emergency')}' : ''}';
 
     return SafeArea(
       child: LayoutBuilder(builder: (context, box) {
@@ -89,7 +90,7 @@ class CallsScreenState extends State<CallsScreen> {
           ),
           const Spacer(),
           Text(
-            _number.isEmpty ? (_external ? 'Phone number' : 'ISSI') : '${_external && prefix.isNotEmpty ? '$prefix ' : ''}$_number',
+            _number.isEmpty ? tr(_external ? 'Phone number' : 'ISSI') : '${_external && prefix.isNotEmpty ? '$prefix ' : ''}$_number',
             style: (compact ? text.headlineMedium : text.displaySmall)?.copyWith(
               fontWeight: FontWeight.w400,
               letterSpacing: 1.5,
@@ -128,7 +129,7 @@ class CallsScreenState extends State<CallsScreen> {
               child: _number.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: 'Delete',
+                      tooltip: tr('Delete'),
                       onPressed: () => setState(() => _number = _number.substring(0, _number.length - 1)),
                       icon: Icon(CupertinoIcons.delete_left, color: scheme.onSurfaceVariant),
                     ),
@@ -259,14 +260,14 @@ class _ActiveCallState extends State<_ActiveCall> {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     if (call.state == 'connected') _connectedAt ??= DateTime.now();
-    final name = call.number != null ? (call.peerName ?? 'Phone') : m.nameOf(call.peer, sentName: call.peerName);
+    final name = call.number != null ? (call.peerName ?? tr('Phone')) : m.nameOf(call.peer, sentName: call.peerName);
     final sub = call.number ?? (name != 'ISSI ${call.peer}' ? 'ISSI ${call.peer}' : null);
     final status = switch (call.state) {
-      'setup' || 'proceeding' => 'Calling…',
-      'alerting' => 'Ringing…',
-      'ringing' => 'Incoming ${call.duplex ? 'call' : 'half-duplex call'}',
-      'connecting' => 'Connecting…',
-      'connected' => call.duplex ? null : (call.floor == 'peer' ? 'Other party is talking' : 'Hold PTT to talk'),
+      'setup' || 'proceeding' => tr('Calling…'),
+      'alerting' => tr('Ringing…'),
+      'ringing' => tr(call.duplex ? 'Incoming call' : 'Incoming half-duplex call'),
+      'connecting' => tr('Connecting…'),
+      'connected' => call.duplex ? null : tr(call.floor == 'peer' ? 'Other party is talking' : 'Hold PTT to talk'),
       _ => call.state,
     };
     final initials = name.trim().isEmpty ? '?' : name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
@@ -279,7 +280,7 @@ class _ActiveCallState extends State<_ActiveCall> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(color: Tokens.emergency, borderRadius: BorderRadius.circular(999)),
-              child: const Text('EMERGENCY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              child: const Tx('EMERGENCY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           const SizedBox(height: 32),
           CircleAvatar(radius: 48, backgroundColor: scheme.surfaceContainerHigh, child: Text(initials, style: text.headlineMedium?.copyWith(color: scheme.onSurface))),
@@ -360,9 +361,9 @@ class RecentsList extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(CupertinoIcons.clock, size: 44, color: scheme.outline),
             const SizedBox(height: 12),
-            Text('No recent calls', style: Theme.of(context).textTheme.titleMedium),
+            Tx('No recent calls', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text('Who talked on your groups, and your own calls, show up here.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+            Tx('Who talked on your groups, and your own calls, show up here.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
           ]),
         ),
       );
@@ -371,10 +372,10 @@ class RecentsList extends StatelessWidget {
     String day(DateTime t) {
       final d = DateTime(t.year, t.month, t.day);
       final diff = DateTime(now.year, now.month, now.day).difference(d).inDays;
-      if (diff == 0) return 'Today';
-      if (diff == 1) return 'Yesterday';
+      if (diff == 0) return tr('Today');
+      if (diff == 1) return tr('Yesterday');
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${t.day} ${months[t.month - 1]}';
+      return L.current == 'de' ? '${t.day}. ${tr(months[t.month - 1])}' : '${t.day} ${months[t.month - 1]}';
     }
 
     final rows = <Widget>[];
@@ -396,7 +397,7 @@ class RecentsList extends StatelessWidget {
                     m.refresh();
                   }
                 },
-                child: Text('Clear', style: TextStyle(fontSize: 15, color: scheme.primary)),
+                child: Tx('Clear', style: TextStyle(fontSize: 15, color: scheme.primary)),
               ),
           ]),
         ));
@@ -441,13 +442,13 @@ class _LogRow extends StatelessWidget {
     final m = context.read<TerminalModel>();
     final scheme = Theme.of(context).colorScheme;
     final missed = e.kind == CallKind.privateMissed;
-    final name = e.kind == CallKind.groupTalked ? 'You' : m.nameOf(e.issi, sentName: e.sentName);
+    final name = e.kind == CallKind.groupTalked ? tr('You') : m.nameOf(e.issi, sentName: e.sentName);
     final (IconData icon, String what) = switch (e.kind) {
       CallKind.groupHeard => (CupertinoIcons.person_3_fill, e.groupName ?? 'TG ${e.gssi}'),
       CallKind.groupTalked => (CupertinoIcons.mic_fill, e.groupName ?? 'TG ${e.gssi}'),
-      CallKind.privateIn => (CupertinoIcons.phone_arrow_down_left, 'Incoming call'),
-      CallKind.privateOut => (CupertinoIcons.phone_arrow_up_right, 'Outgoing call'),
-      CallKind.privateMissed => (CupertinoIcons.phone_arrow_down_left, 'Missed call'),
+      CallKind.privateIn => (CupertinoIcons.phone_arrow_down_left, tr('Incoming call')),
+      CallKind.privateOut => (CupertinoIcons.phone_arrow_up_right, tr('Outgoing call')),
+      CallKind.privateMissed => (CupertinoIcons.phone_arrow_down_left, tr('Missed call')),
     };
     final hh = e.time.hour.toString().padLeft(2, '0'), mm = e.time.minute.toString().padLeft(2, '0');
     final secs = e.duration.inSeconds;
@@ -475,7 +476,7 @@ class _LogRow extends StatelessWidget {
                 Icon(icon, size: 13, color: scheme.onSurfaceVariant),
                 const SizedBox(width: 5),
                 Flexible(
-                  child: Text('${e.emergency ? 'Emergency · ' : ''}$what', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)),
+                  child: Text('${e.emergency ? '${tr('Emergency')} · ' : ''}$what', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)),
                 ),
               ]),
             ]),

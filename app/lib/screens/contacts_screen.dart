@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../model/contacts.dart';
 import '../model/terminal_model.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
 import 'messages_screen.dart';
@@ -39,7 +40,7 @@ class ContactsScreenState extends State<ContactsScreen> {
       title: 'Contacts',
       actions: [
         IconButton(
-          tooltip: _groups ? 'Add talkgroup' : 'Add contact',
+          tooltip: tr(_groups ? 'Add talkgroup' : 'Add contact'),
           icon: Icon(pick(context, _groups ? Icons.group_add_outlined : Icons.person_add_alt, CupertinoIcons.add)),
           onPressed: () => _groups ? editTalkgroup(context, m, null) : editContact(context, m, null),
         ),
@@ -59,8 +60,8 @@ class ContactsScreenState extends State<ContactsScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(Tokens.gutter, 4, Tokens.gutter, 4),
               child: isApple(context)
-                  ? CupertinoSearchTextField(placeholder: 'Name or ISSI', onChanged: (v) => setState(() => _query = v))
-                  : TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Name or ISSI'), onChanged: (v) => setState(() => _query = v)),
+                  ? CupertinoSearchTextField(placeholder: tr('Name or ISSI'), onChanged: (v) => setState(() => _query = v))
+                  : TextField(decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: tr('Name or ISSI')), onChanged: (v) => setState(() => _query = v)),
             ),
           ),
         if (m.contacts.contacts.isEmpty)
@@ -70,12 +71,12 @@ class ContactsScreenState extends State<ContactsScreen> {
               child: Column(children: [
                 Icon(CupertinoIcons.person_crop_circle, size: 48, color: scheme.outline),
                 const SizedBox(height: 12),
-                Text('No contacts yet', style: Theme.of(context).textTheme.titleMedium),
+                Tx('No contacts yet', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
-                Text('Save ISSIs with a name. Your names are shown instead of the ones from RadioID.net.',
+                Tx('Save ISSIs with a name. Your names are shown instead of the ones from RadioID.net.',
                     textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: () => editContact(context, m, null), child: const Text('Add contact')),
+                FilledButton(onPressed: () => editContact(context, m, null), child: const Tx('Add contact')),
               ]),
             ),
           )

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'l10n.dart';
 import 'theme.dart';
 
 /// True on iPhone/iPad (and macOS): use Apple controls and conventions there.
@@ -36,8 +37,8 @@ class Section extends StatelessWidget {
       return CupertinoListSection.insetGrouped(
         backgroundColor: scheme.surface,
         decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
-        header: header == null ? null : Text(header!.toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: .2, color: scheme.onSurfaceVariant)),
-        footer: footer == null ? null : Text(footer!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: scheme.onSurfaceVariant)),
+        header: header == null ? null : Text(tr(header!).toUpperCase(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: .2, color: scheme.onSurfaceVariant)),
+        footer: footer == null ? null : Text(tr(footer!), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: scheme.onSurfaceVariant)),
         children: children,
       );
     }
@@ -48,7 +49,7 @@ class Section extends StatelessWidget {
         if (header != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-            child: Text(header!, style: text.labelLarge?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+            child: Text(tr(header!), style: text.labelLarge?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ),
         // One calm card per section with hairline dividers, as on iOS.
         Material(
@@ -65,7 +66,7 @@ class Section extends StatelessWidget {
         if (footer != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-            child: Text(footer!, style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            child: Text(tr(footer!), style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
           ),
       ]),
     );
@@ -88,16 +89,16 @@ class Tile extends StatelessWidget {
     final color = destructive ? Tokens.emergency : null;
     if (isApple(context)) {
       return CupertinoListTile(
-        title: Text(title, style: TextStyle(color: color ?? scheme.onSurface)),
-        subtitle: subtitle == null ? null : Text(subtitle!, maxLines: 2),
+        title: Text(tr(title), style: TextStyle(color: color ?? scheme.onSurface)),
+        subtitle: subtitle == null ? null : Text(tr(subtitle!), maxLines: 2),
         leading: leading,
         trailing: trailing ?? (onTap != null && !destructive ? const CupertinoListTileChevron() : null),
         onTap: onTap,
       );
     }
     return ListTile(
-      title: Text(title, style: TextStyle(color: color)),
-      subtitle: subtitle == null ? null : Text(subtitle!),
+      title: Text(tr(title), style: TextStyle(color: color)),
+      subtitle: subtitle == null ? null : Text(tr(subtitle!)),
       leading: leading,
       trailing: trailing,
       onTap: onTap,
@@ -120,7 +121,7 @@ class SliderRow extends StatelessWidget {
   Widget build(BuildContext context) => Tile(
         title: title,
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(valueLabel, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontFeatures: const [FontFeature.tabularFigures()])),
+          Text(tr(valueLabel), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontFeatures: const [FontFeature.tabularFigures()])),
           SizedBox(width: 150, child: Slider.adaptive(value: value, min: min, max: max, divisions: divisions, onChanged: onChanged)),
         ]),
       );
@@ -171,9 +172,9 @@ class FieldRow extends StatelessWidget {
     final formatters = number ? [FilteringTextInputFormatter.digitsOnly] : null;
     if (isApple(context)) {
       return CupertinoTextFormFieldRow(
-        prefix: SizedBox(width: 112, child: Text(label)),
+        prefix: SizedBox(width: 112, child: Text(tr(label))),
         initialValue: initial,
-        placeholder: hint,
+        placeholder: hint == null ? null : tr(hint!),
         obscureText: obscure,
         keyboardType: type,
         inputFormatters: formatters,
@@ -194,7 +195,7 @@ class FieldRow extends StatelessWidget {
         autocorrect: false,
         validator: validator,
         onChanged: onChanged,
-        decoration: InputDecoration(labelText: label, hintText: hint, border: InputBorder.none, isDense: true),
+        decoration: InputDecoration(labelText: tr(label), hintText: hint == null ? null : tr(hint!), border: InputBorder.none, isDense: true),
       ),
     );
   }
@@ -212,7 +213,7 @@ class Segments<T extends Object> extends StatelessWidget {
     if (isApple(context)) {
       return CupertinoSlidingSegmentedControl<T>(
         groupValue: value,
-        children: {for (final e in items.entries) e.key: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(e.value))},
+        children: {for (final e in items.entries) e.key: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(tr(e.value)))},
         onValueChanged: (v) {
           if (v != null) {
             Haptics.select();
@@ -223,7 +224,7 @@ class Segments<T extends Object> extends StatelessWidget {
     }
     return SegmentedButton<T>(
       showSelectedIcon: false,
-      segments: [for (final e in items.entries) ButtonSegment(value: e.key, label: Text(e.value))],
+      segments: [for (final e in items.entries) ButtonSegment(value: e.key, label: Text(tr(e.value)))],
       selected: {value},
       onSelectionChanged: (s) => onChanged(s.first),
     );
@@ -242,7 +243,7 @@ class LabeledSegments<T extends Object> extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(Tokens.gutter, 10, Tokens.gutter, 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(label, style: const TextStyle(fontSize: 16)),
+          Text(tr(label), style: const TextStyle(fontSize: 16)),
           const SizedBox(height: 8),
           Segments<T>(items: items, value: value, onChanged: onChanged),
         ]),
@@ -263,13 +264,13 @@ Future<T?> showActions<T>(BuildContext context, {String? title, String? message,
     return showCupertinoModalPopup<T>(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: title == null ? null : Text(title),
-        message: message == null ? null : Text(message),
+        title: title == null ? null : Text(tr(title)),
+        message: message == null ? null : Text(tr(message)),
         actions: [
           for (final a in actions)
-            CupertinoActionSheetAction(isDestructiveAction: a.destructive, onPressed: () => Navigator.pop(ctx, a.value), child: Text(a.label)),
+            CupertinoActionSheetAction(isDestructiveAction: a.destructive, onPressed: () => Navigator.pop(ctx, a.value), child: Text(tr(a.label))),
         ],
-        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: const Tx('Cancel')),
       ),
     );
   }
@@ -278,11 +279,11 @@ Future<T?> showActions<T>(BuildContext context, {String? title, String? message,
     showDragHandle: true,
     builder: (ctx) => SafeArea(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (title != null) ListTile(title: Text(title, style: Theme.of(ctx).textTheme.titleMedium), subtitle: message == null ? null : Text(message)),
+        if (title != null) ListTile(title: Text(tr(title), style: Theme.of(ctx).textTheme.titleMedium), subtitle: message == null ? null : Text(tr(message))),
         for (final a in actions)
           ListTile(
             leading: a.icon == null ? null : Icon(a.icon, color: a.destructive ? Tokens.emergency : null),
-            title: Text(a.label, style: TextStyle(color: a.destructive ? Tokens.emergency : null)),
+            title: Text(tr(a.label), style: TextStyle(color: a.destructive ? Tokens.emergency : null)),
             onTap: () => Navigator.pop(ctx, a.value),
           ),
       ]),
@@ -306,9 +307,9 @@ Future<bool> showFormSheet(BuildContext context, {required String title, require
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
           child: Row(children: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            Expanded(child: Text(title, textAlign: TextAlign.center, style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(action, style: const TextStyle(fontWeight: FontWeight.w600))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Tx('Cancel')),
+            Expanded(child: Text(tr(title), textAlign: TextAlign.center, style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr(action), style: const TextStyle(fontWeight: FontWeight.w600))),
           ]),
         ),
         Section(children: fields),

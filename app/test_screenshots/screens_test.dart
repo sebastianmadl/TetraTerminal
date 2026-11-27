@@ -17,6 +17,7 @@ import 'package:tetra_terminal/model/terminal_model.dart';
 import 'package:tetra_terminal/screens/home_screen.dart';
 import 'package:tetra_terminal/screens/messages_screen.dart';
 import 'package:tetra_terminal/screens/settings_screen.dart';
+import 'package:tetra_terminal/ui/l10n.dart';
 import 'package:tetra_terminal/src/rust/api.dart';
 import 'package:tetra_terminal/ui/theme.dart';
 
@@ -365,5 +366,29 @@ void main() {
     await _shot(t, '40-android-settings-menu', m, const HomeScreen(initialTab: 4), p: TargetPlatform.android, act: (t) async {
       await t.drag(find.byType(CustomScrollView), const Offset(0, -330));
     });
+  });
+
+  // German.
+  for (final (n, name, home, p) in <(int, String, Widget, TargetPlatform)>[
+    (41, 'radio', const HomeScreen(), TargetPlatform.iOS),
+    (42, 'settings', const HomeScreen(initialTab: 4), TargetPlatform.iOS),
+    (43, 'audio', const AudioSettings(), TargetPlatform.iOS),
+    (44, 'android-settings', const HomeScreen(initialTab: 4), TargetPlatform.android),
+    (45, 'android-display', const DisplaySettings(), TargetPlatform.android),
+  ]) {
+    testWidgets('$n german $name', (t) async {
+      L.current = 'de';
+      addTearDown(() => L.current = 'en');
+      final m = _model();
+      m.groupActivity[91] = GroupCallState(91, 2320972, 'OE1ABC', 1, 'c1', since: DateTime.now().subtract(const Duration(seconds: 12)));
+      m.focusCallId = 'c1';
+      await _shot(t, '$n-de-$name', m, home, p: p);
+    });
+  }
+
+  testWidgets('46 german on a small PoC screen', (t) async {
+    L.current = 'de';
+    addTearDown(() => L.current = 'en');
+    await _shot(t, '46-de-android-small', _model(), const HomeScreen(), p: TargetPlatform.android, size: const Size(320, 533));
   });
 }

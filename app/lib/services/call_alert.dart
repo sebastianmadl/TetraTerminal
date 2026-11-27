@@ -54,11 +54,12 @@ class CallAlert {
   }
 
   /// Rings for the call [id]. [name] is the caller as the app shows it, [sub]
-  /// the line below (ISSI or phone number).
-  Future<void> incoming({required String id, required String name, String? sub, required bool emergency, required bool duplex, String? ringtone}) async {
+  /// the line below (ISSI or phone number). [labels]: Android notification
+  /// texts in the app's language (headline, Answer, Decline).
+  Future<void> incoming({required String id, required String name, String? sub, required bool emergency, required bool duplex, String? ringtone, List<String>? labels}) async {
     if (_unavailable) return;
     _shown = id;
-    final taken = await _call<bool>('incoming', {'id': id, 'name': name, 'sub': sub, 'emergency': emergency, 'duplex': duplex, 'ringtone': ringtone});
+    final taken = await _call<bool>('incoming', {'id': id, 'name': name, 'sub': sub, 'emergency': emergency, 'duplex': duplex, 'ringtone': ringtone, 'labels': labels});
     if (taken != true) {
       // Do Not Disturb or no permission: the app shows the call on its own.
       if (_shown == id) _shown = null;

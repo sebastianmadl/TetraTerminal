@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../model/terminal_model.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
 
@@ -36,7 +37,7 @@ class MessagesScreen extends StatelessWidget {
       title: 'Messages',
       actions: [
         IconButton(
-          tooltip: 'New message',
+          tooltip: tr('New message'),
           icon: Icon(pick(context, Icons.edit_outlined, CupertinoIcons.square_pencil)),
           onPressed: () async {
             var to = '';
@@ -58,9 +59,9 @@ class MessagesScreen extends StatelessWidget {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(CupertinoIcons.chat_bubble_2, size: 48, color: scheme.outline),
                 const SizedBox(height: 12),
-                Text('No messages', style: Theme.of(context).textTheme.titleMedium),
+                Tx('No messages', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
-                Text('Short data messages (SDS) to radios and groups show up here.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                Tx('Short data messages (SDS) to radios and groups show up here.', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
               ]),
             ),
           )
@@ -77,7 +78,7 @@ class MessagesScreen extends StatelessWidget {
                       child: Icon(isGroup(p) ? CupertinoIcons.person_3_fill : CupertinoIcons.person_fill, size: 20, color: isGroup(p) ? Colors.white : scheme.onSurfaceVariant),
                     ),
                     title: label(p),
-                    subtitle: '${last.outgoing ? 'You: ' : ''}${last.text}',
+                    subtitle: '${last.outgoing ? '${tr('You')}: ' : ''}${last.text}',
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (m.locations[p] != null) Icon(CupertinoIcons.location_solid, size: 14, color: scheme.outline),
                       const SizedBox(width: 4),
@@ -163,7 +164,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     border: msg.immediate ? Border.all(color: Tokens.emergency, width: 2) : null,
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    if (msg.immediate) Text('FLASH', style: TextStyle(color: msg.outgoing ? Colors.white : Tokens.emergency, fontSize: 11, fontWeight: FontWeight.w700)),
+                    if (msg.immediate) Tx('FLASH', style: TextStyle(color: msg.outgoing ? Colors.white : Tokens.emergency, fontSize: 11, fontWeight: FontWeight.w700)),
                     Text(msg.text, style: TextStyle(color: fg, fontSize: 16)),
                     const SizedBox(height: 2),
                     Row(mainAxisSize: MainAxisSize.min, children: [
@@ -182,7 +183,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
             child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
               IconButton(
-                tooltip: _flash ? 'Flash message on' : 'Send as flash (immediate) message',
+                tooltip: tr(_flash ? 'Flash message on' : 'Send as flash (immediate) message'),
                 icon: Icon(_flash ? CupertinoIcons.bolt_fill : CupertinoIcons.bolt, color: _flash ? Tokens.emergency : scheme.outline),
                 onPressed: () => setState(() => _flash = !_flash),
               ),
@@ -201,13 +202,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     maxLines: 4,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => send(),
-                    decoration: const InputDecoration(hintText: 'Message', counterText: '', border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
+                    decoration: InputDecoration(hintText: tr('Message'), counterText: '', border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10)),
                   ),
                 ),
               ),
               const SizedBox(width: 6),
               IconButton.filled(
-                tooltip: 'Send',
+                tooltip: tr('Send'),
                 style: IconButton.styleFrom(backgroundColor: outgoingColor),
                 onPressed: m.link != LinkState.online ? null : send,
                 icon: const Icon(CupertinoIcons.arrow_up, color: Colors.white),

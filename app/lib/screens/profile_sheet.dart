@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../model/settings.dart';
 import '../model/terminal_model.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/theme.dart';
 
 /// Add or edit a connection profile in a sheet (Cancel · Title · Save).
@@ -12,7 +13,7 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
   final isNew = existing == null;
   final p = existing?.copy() ?? ConnectionProfile(id: m.settings.newProfileId(), serverUrl: 'https://');
   final form = GlobalKey<FormState>();
-  String? number(String? v) => (v ?? '').isEmpty || int.tryParse(v!) != null ? null : 'Number';
+  String? number(String? v) => (v ?? '').isEmpty || int.tryParse(v!) != null ? null : tr('Number');
 
   final saved = await showModalBottomSheet<String>(
     context: context,
@@ -31,16 +32,16 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
               child: Row(children: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Tx('Cancel')),
                 Expanded(
-                  child: Text(isNew ? 'New connection' : 'Edit connection',
+                  child: Text(tr(isNew ? 'New connection' : 'Edit connection'),
                       textAlign: TextAlign.center, style: text.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 ),
                 TextButton(
                   onPressed: () {
                     if (form.currentState!.validate()) Navigator.pop(ctx, 'save');
                   },
-                  child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Tx('Save', style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ]),
             ),
@@ -126,7 +127,7 @@ Future<void> editProfile(BuildContext context, TerminalModel m, ConnectionProfil
     await m.saveProfile(p);
   } else if (saved == 'delete' && existing != null) {
     final ok = await showActions<bool>(context,
-        title: 'Delete "${existing.displayName}"?', message: 'Its talkgroups and stored password are removed.', actions: const [
+        title: tr('Delete "{0}"?', [existing.displayName]), message: 'Its talkgroups and stored password are removed.', actions: const [
       SheetAction('Delete connection', true, destructive: true),
     ]);
     if (ok == true) await m.deleteProfile(existing);
@@ -163,9 +164,9 @@ class ProfileRow extends StatelessWidget {
     return Tile(
       leading: Icon(active ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle, color: active ? scheme.primary : scheme.outline),
       title: p.displayName,
-      subtitle: [if (p.issi > 0) 'ISSI ${p.issi}', if (p.talkgroups.isNotEmpty) '${p.talkgroups.length} groups'].join(' · '),
+      subtitle: [if (p.issi > 0) 'ISSI ${p.issi}', if (p.talkgroups.isNotEmpty) tr('{0} groups', [p.talkgroups.length])].join(' · '),
       trailing: IconButton(
-        tooltip: 'Edit ${p.displayName}',
+        tooltip: tr('Edit {0}', [p.displayName]),
         icon: Icon(CupertinoIcons.info_circle, color: scheme.primary),
         onPressed: () => editProfile(context, m, p),
       ),

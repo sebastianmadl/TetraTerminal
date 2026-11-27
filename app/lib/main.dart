@@ -9,6 +9,7 @@ import 'model/settings.dart';
 import 'model/terminal_model.dart';
 import 'screens/home_screen.dart';
 import 'ui/theme.dart';
+import 'ui/l10n.dart';
 import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
@@ -21,6 +22,8 @@ Future<void> main() async {
     return;
   }
   final settings = await Settings.load();
+  L.current = L.resolve(settings.language ?? 'system');
+  Settings.firstStartPrompts = true;
   final model = TerminalModel(settings);
   runApp(ChangeNotifierProvider.value(value: model, child: const TetraApp()));
   // Ask for permissions once the UI is up (asking before runApp can leave a black screen).
@@ -33,7 +36,7 @@ Future<void> main() async {
   try {
     await model.start();
   } catch (e) {
-    model.toast = 'Startup: $e';
+    model.toast = '${tr('Startup')}: $e';
   }
 }
 

@@ -50,7 +50,7 @@ void main() {
     m.handleEvent(AppEvent.privateCall(call: call('ringing', peerName: 'OE1ABC')));
     await settle();
     expect(calls.map((c) => c.method), ['incoming']);
-    expect(calls.single.arguments, {'id': 'p1', 'name': 'OE1ABC', 'sub': 'ISSI 2629001', 'emergency': false, 'duplex': true, 'ringtone': null});
+    expect(calls.single.arguments, {'id': 'p1', 'name': 'OE1ABC', 'sub': 'ISSI 2629001', 'emergency': false, 'duplex': true, 'ringtone': null, 'labels': ['Incoming call', 'Answer', 'Decline']});
 
     m.handleEvent(AppEvent.privateCall(call: call('connected', peerName: 'OE1ABC')));
     await settle();
@@ -66,7 +66,7 @@ void main() {
     final m = TerminalModel(Settings()..ringtoneUri = 'content://media/ring/7');
     m.handleEvent(AppEvent.privateCall(call: call('ringing', priority: 15, number: '+4312345', peerName: 'Office')));
     await settle();
-    expect(calls.single.arguments, {'id': 'p1', 'name': 'Office', 'sub': '+4312345', 'emergency': true, 'duplex': true, 'ringtone': 'content://media/ring/7'});
+    expect(calls.single.arguments, {'id': 'p1', 'name': 'Office', 'sub': '+4312345', 'emergency': true, 'duplex': true, 'ringtone': 'content://media/ring/7', 'labels': ['Emergency call', 'Answer', 'Decline']});
   });
 
   test('no ringing for outgoing calls or with the setting off', () async {

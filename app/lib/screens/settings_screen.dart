@@ -14,6 +14,7 @@ import '../model/terminal_model.dart';
 import '../services/call_alert.dart';
 import '../services/version.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/level_meter.dart';
 import '../ui/theme.dart';
 import 'home_screen.dart';
@@ -33,7 +34,7 @@ class SettingsScreen extends StatelessWidget {
     final m = context.watch<TerminalModel>();
     final s = m.settings;
     final scheme = Theme.of(context).colorScheme;
-    String onOff(bool v) => v ? 'on' : 'off';
+    String onOff(bool v) => tr(v ? 'on' : 'off');
 
     return TabPage(
       title: 'Settings',
@@ -58,28 +59,28 @@ class SettingsScreen extends StatelessWidget {
                 icon: CupertinoIcons.antenna_radiowaves_left_right,
                 color: const Color(0xFF1F8A70),
                 title: 'Radio',
-                summary: '${s.pttToggle ? 'Toggle' : 'Hold to talk'} · P${s.defaultPriority} · scan hold ${s.scanHoldSeconds == 0 ? 'off' : '${s.scanHoldSeconds} s'}',
+                summary: '${tr(s.pttToggle ? 'Toggle' : 'Hold to talk')} · P${s.defaultPriority} · ${tr('scan hold {0}', [s.scanHoldSeconds == 0 ? tr('off') : '${s.scanHoldSeconds} s'])}',
                 page: const RadioSettings(),
               ),
               MenuTile(
                 icon: CupertinoIcons.phone_fill,
                 color: const Color(0xFF34A853),
                 title: 'Calls and background',
-                summary: 'Ringing ${onOff(s.ringIncoming)} · ${isApple(context) ? 'Live Activity' : 'live notification'} ${onOff(s.liveActivity)}',
+                summary: '${tr('Ringing {0}', [onOff(s.ringIncoming)])} · ${tr(isApple(context) ? 'Live Activity {0}' : 'live notification {0}', [onOff(s.liveActivity)])}',
                 page: const CallSettings(),
               ),
               MenuTile(
                 icon: CupertinoIcons.waveform,
                 color: const Color(0xFFE5484D),
                 title: 'Audio',
-                summary: 'Microphone ${s.micAuto ? 'automatic' : 'manual'} · noise suppression ${onOff(s.noiseSuppression)}',
+                summary: '${tr(s.micAuto ? 'Microphone automatic' : 'Microphone manual')} · ${tr('noise suppression {0}', [onOff(s.noiseSuppression)])}',
                 page: const AudioSettings(),
               ),
               MenuTile(
                 icon: CupertinoIcons.rectangle_on_rectangle_angled,
                 color: const Color(0xFF5E5CE6),
                 title: 'Display',
-                summary: '${const {'system': 'Automatic', 'light': 'Light', 'dark': 'Dark'}[s.appearance] ?? 'Automatic'} · radio screen buttons',
+                summary: '${L.current == 'de' ? 'Deutsch' : 'English'} · ${tr(const {'system': 'Automatic', 'light': 'Light', 'dark': 'Dark'}[s.appearance] ?? 'Automatic')} · ${tr('buttons')}',
                 page: const DisplaySettings(),
               ),
               if (_android)
@@ -88,8 +89,8 @@ class SettingsScreen extends StatelessWidget {
                   color: const Color(0xFFF2994A),
                   title: 'Keys and accessories',
                   summary: [
-                    s.pocPttEnabled ? PocProfile.nameOf(s.pocProfile) : 'Hardware PTT off',
-                    if (s.headsetEnabled) 'Bluetooth headset',
+                    s.pocPttEnabled ? tr(PocProfile.nameOf(s.pocProfile)) : tr('Hardware PTT off'),
+                    if (s.headsetEnabled) tr('Bluetooth headset'),
                   ].join(' · '),
                   page: const HardwareSettings(),
                 ),
@@ -97,7 +98,7 @@ class SettingsScreen extends StatelessWidget {
                 icon: CupertinoIcons.location_fill,
                 color: const Color(0xFF0A84FF),
                 title: 'Location',
-                summary: s.lipEnabled ? 'Every ${s.lipIntervalSeconds} s${s.lipDestination > 0 ? ' to ${s.lipDestination}' : ''}' : 'Off',
+                summary: s.lipEnabled ? (s.lipDestination > 0 ? tr('Every {0} s to {1}', [s.lipIntervalSeconds, s.lipDestination]) : tr('Every {0} s', [s.lipIntervalSeconds])) : 'Off',
                 page: const LocationSettings(),
               ),
               MenuTile(
@@ -117,7 +118,7 @@ class SettingsScreen extends StatelessWidget {
                     Tile(
                       title: n.name,
                       subtitle: n.mni,
-                      trailing: n.own ? null : Text(n.up ? 'linked' : 'offline', style: TextStyle(color: n.up ? Tokens.online : scheme.outline)),
+                      trailing: n.own ? null : Text(tr(n.up ? 'linked' : 'offline'), style: TextStyle(color: n.up ? Tokens.online : scheme.outline)),
                     ),
                 ],
               ),
@@ -138,9 +139,9 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   const Credit(role: 'Redesign & advanced features', name: 'sebastianmadl (OE4SXM)', github: 'sebastianmadl'),
                   const SizedBox(height: 6),
-                  if (m.extensions.isNotEmpty) Text('Server offers: ${m.extensions.join(', ')}', style: const TextStyle(fontSize: 11)),
+                  if (m.extensions.isNotEmpty) Text(tr('Server offers: {0}', [m.extensions.join(', ')]), style: const TextStyle(fontSize: 11)),
                   if (s.basestation && m.link != LinkState.offline)
-                    Text('Control channel: ${m.controlOnline ? 'connected' : m.controlError ?? 'connecting'}', style: const TextStyle(fontSize: 11)),
+                    Text(tr('Control channel: {0}', [m.controlOnline ? tr('connected') : m.controlError ?? tr('connecting')]), style: const TextStyle(fontSize: 11)),
                 ]),
               ),
             ),
@@ -206,7 +207,7 @@ class _SettingsPageState extends State<SettingsPage> {
         if (didPop) m.settingsEdited(reconnect: _serverKey(s) != _before, inputs: widget.inputs);
       },
       child: Scaffold(
-        appBar: AppBar(title: Text(widget.title)),
+        appBar: AppBar(title: Text(tr(widget.title))),
         body: ListView(children: widget.builder(context, m, s, setState)),
       ),
     );
@@ -318,7 +319,7 @@ class CallSettings extends StatelessWidget {
                       s.ringtoneName = picked.title;
                     });
                   } on PlatformException catch (e) {
-                    m.toast = e.message ?? 'No ring tone picker on this device';
+                    m.toast = tr(e.message ?? 'No ring tone picker on this device');
                     m.notifyListeners();
                   } on MissingPluginException {
                     // not on this platform
@@ -446,6 +447,15 @@ class DisplaySettings extends StatelessWidget {
   Widget build(BuildContext context) => SettingsPage(
         title: 'Display',
         builder: (context, m, s, set) => [
+          Section(header: 'Language', children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Tokens.gutter, vertical: 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: Segments<String>(items: L.choices, value: s.language ?? 'system', onChanged: m.setLanguage),
+              ),
+            ),
+          ]),
           Section(header: 'Appearance', children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Tokens.gutter, vertical: 10),
@@ -508,7 +518,7 @@ class DatabaseSettings extends StatelessWidget {
                 subtitle: radioIdStatus(m),
                 trailing: m.contacts.updating
                     ? const Padding(padding: EdgeInsets.only(right: 8), child: CupertinoActivityIndicator())
-                    : TextButton(onPressed: m.contacts.updateRadioId, child: const Text('Update now')),
+                    : TextButton(onPressed: m.contacts.updateRadioId, child: const Tx('Update now')),
               ),
               SwitchRow(title: 'Update weekly', subtitle: 'In the background, when the app starts', value: m.contacts.radioIdAuto, onChanged: m.contacts.setRadioIdAuto),
             ],
@@ -519,13 +529,13 @@ class DatabaseSettings extends StatelessWidget {
 
 String radioIdStatus(TerminalModel m) {
   final c = m.contacts;
-  if (c.updating) return 'Downloading…';
-  if (c.radioIdCount == 0) return 'Not loaded';
+  if (c.updating) return tr('Downloading…');
+  if (c.radioIdCount == 0) return tr('Not loaded');
   final n = c.radioIdCount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
   final t = c.radioIdUpdated;
   if (t == null) return '$n IDs';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '$n IDs · updated ${t.day} ${months[t.month - 1]}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  return '$n IDs · ${tr('updated')} ${t.day}${L.current == 'de' ? '.' : ''} ${tr(months[t.month - 1])}, ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 }
 
 /// Android: hardware PTT key, knob and LED of PoC radios, Bluetooth PTT headset.
@@ -543,10 +553,12 @@ class _HardwareSettingsState extends State<HardwareSettings> {
         builder: (context, m, s, set) => [
           Section(
             header: 'Radio with keys (PoC devices)',
-            footer: 'For Android radios with a hardware PTT key or a channel knob. Pick your device, or Custom to set the keys '
+            footer: tr(
+                'For Android radios with a hardware PTT key or a channel knob. Pick your device, or Custom to set the keys '
                 'yourself: tap a key row and press the key to teach it. Some radios send a broadcast for PTT instead; '
                 'enter its "down" action, the "up" action is derived. Automation apps can send '
-                '${PocPtt.ownDownAction} / ${PocPtt.ownUpAction}. On Hytera radios the status LED shows transmit and receive.',
+                '{0} / {1}. On Hytera radios the status LED shows transmit and receive.',
+                [PocPtt.ownDownAction, PocPtt.ownUpAction]),
             children: [
               SwitchRow(
                 title: 'Use hardware PTT and knob',
@@ -558,7 +570,7 @@ class _HardwareSettingsState extends State<HardwareSettings> {
                   title: 'Device',
                   subtitle: s.pocCustom ? 'Set the keys below' : 'PTT key, knob and LED are set',
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(PocProfile.nameOf(s.pocProfile), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text(tr(PocProfile.nameOf(s.pocProfile)), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ]),
                   onTap: () async {
@@ -644,7 +656,7 @@ class _HardwareSettingsState extends State<HardwareSettings> {
         ],
       );
 
-  static String _keyLabel(int code) => code == 0 ? 'None. Tap, then press a key to set one' : 'Key code $code';
+  static String _keyLabel(int code) => code == 0 ? tr('None. Tap, then press a key to set one') : tr('Key code {0}', [code]);
 
   /// Waits for one hardware key press and stores its code via [set].
   Future<void> _teachKey(TerminalModel m, String title, void Function(int code) set) async {
@@ -652,8 +664,8 @@ class _HardwareSettingsState extends State<HardwareSettings> {
     final dialog = showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: const Text('Press the key on your radio now…'),
+        title: Text(tr(title)),
+        content: const Tx('Press the key on your radio now…'),
         actions: [
           TextButton(
             onPressed: () {
@@ -662,7 +674,7 @@ class _HardwareSettingsState extends State<HardwareSettings> {
               set(0);
               Navigator.pop(ctx);
             },
-            child: const Text('Remove'),
+            child: const Tx('Remove'),
           ),
           TextButton(
             onPressed: () {
@@ -670,7 +682,7 @@ class _HardwareSettingsState extends State<HardwareSettings> {
               m.cancelPocPttLearn();
               Navigator.pop(ctx);
             },
-            child: const Text('Cancel'),
+            child: const Tx('Cancel'),
           ),
         ],
       ),
@@ -704,7 +716,7 @@ class Credit extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final url = 'https://github.com/$github';
     return Column(children: [
-      Text(role.toUpperCase(), style: TextStyle(color: scheme.outline, fontSize: 10.5, letterSpacing: .6, fontWeight: FontWeight.w600)),
+      Text(tr(role).toUpperCase(), style: TextStyle(color: scheme.outline, fontSize: 10.5, letterSpacing: .6, fontWeight: FontWeight.w600)),
       Text(name, style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
       Semantics(
         link: true,
@@ -734,7 +746,7 @@ class _RxAudioScreenState extends State<RxAudioScreen> {
     final scheme = Theme.of(context).colorScheme;
     String db(double v) => '${v > 0 ? '+' : ''}${v.round()} dB';
     return Scaffold(
-      appBar: AppBar(title: const Text('Receive audio')),
+      appBar: AppBar(title: const Tx('Receive audio')),
       body: ListView(children: [
         Section(header: 'Volume', footer: 'Raises what you hear on top of the device volume.', children: [
           SliderRow(
@@ -799,7 +811,7 @@ class _RxAudioScreenState extends State<RxAudioScreen> {
                   s.save();
                   m.audio.playTestTone();
                 },
-                child: const Text('Play test tone'),
+                child: const Tx('Play test tone'),
               ),
             ]),
           ),

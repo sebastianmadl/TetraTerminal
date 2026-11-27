@@ -1,6 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+
+import 'l10n.dart';
 import 'package:flutter/services.dart';
 
 import 'adaptive.dart';
@@ -172,7 +174,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
                       child: Semantics(
                         selected: i == widget.index,
                         button: true,
-                        label: it.$3,
+                        label: tr(it.$3),
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () => widget.onTap(i),
@@ -183,12 +185,17 @@ class _GlassTabBarState extends State<GlassTabBar> {
                               child: Icon(i == active ? it.$2 : it.$1, size: 24, color: i == active ? scheme.primary : scheme.onSurface),
                             ),
                             const SizedBox(height: 2),
-                            Text(it.$3,
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: i == active ? FontWeight.w600 : FontWeight.w500,
-                                  color: i == active ? scheme.primary : scheme.onSurface,
-                                )),
+                            // Longer words of other languages shrink instead of wrapping.
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(tr(it.$3),
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: i == active ? FontWeight.w600 : FontWeight.w500,
+                                    color: i == active ? scheme.primary : scheme.onSurface,
+                                  )),
+                            ),
                           ]),
                         ),
                       ),

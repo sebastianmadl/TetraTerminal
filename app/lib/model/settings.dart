@@ -248,6 +248,10 @@ class Settings {
 
   /// Loudspeaker (true) or earpiece / phone mode (false); headsets always win.
   bool speakerOut = true;
+  /// 'system', 'en' or 'de'; null until the user was asked on the first start.
+  String? language;
+  /// The app asks on the first start (language, key service); off in tests.
+  static bool firstStartPrompts = false;
   /// 'system', 'light' or 'dark'.
   String appearance = 'system';
   /// iOS: show the radio on the Lock Screen and in the Dynamic Island.
@@ -401,6 +405,7 @@ class Settings {
       ..liveActivity = j['liveActivity'] ?? true
       ..ringIncoming = j['ringIncoming'] ?? true
       ..ringtoneUri = j['ringtoneUri']
+      ..language = j['language']
       ..keyServiceAsked = j['keyServiceAsked'] ?? false
       ..ringtoneName = j['ringtoneName']
       ..pttToggle = j['pttToggle'] ?? false
@@ -484,6 +489,7 @@ class Settings {
         'liveActivity': liveActivity,
         'ringIncoming': ringIncoming,
         'ringtoneUri': ringtoneUri,
+        'language': language,
         'keyServiceAsked': keyServiceAsked,
         'ringtoneName': ringtoneName,
         'pttToggle': pttToggle,

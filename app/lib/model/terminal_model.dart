@@ -13,6 +13,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/audio_io.dart';
 import '../services/call_alert.dart';
 import '../services/live_status.dart';
+import '../ui/l10n.dart';
 import '../services/location_service.dart';
 import '../services/ptt_input.dart';
 import '../services/tx_capture_store.dart';
@@ -131,7 +132,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   List<LinkedNetwork> networks = const [];
 
   String networkName(int mcc, int mnc) {
-    if (mcc == 0 && mnc == 0) return 'Home network';
+    if (mcc == 0 && mnc == 0) return tr('Home network');
     return networks.where((n) => n.mcc == mcc && n.mnc == mnc).firstOrNull?.name ?? '$mcc-$mnc';
   }
 
@@ -189,7 +190,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     final call = transmitting
         ? null
         : heard ?? groupActivity[settings.selectedGssi] ?? groupActivity.values.firstOrNull;
-    final talker = transmitting ? 'You' : (call == null ? null : nameOf(call.talker, sentName: call.talkerName));
+    final talker = transmitting ? tr('You') : (call == null ? null : nameOf(call.talker, sentName: call.talkerName));
     final since = transmitting ? myTxSince : call?.since;
     if (talker != null && !transmitting) {
       _lastTalker = talker;
@@ -200,7 +201,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       'online': link == LinkState.online,
       'profile': settings.active.displayName,
       'server': settings.active.displayName,
-      'group': call != null ? _groupName(call.gssi) : (selected?.name ?? (settings.selectedGssi != null ? 'TG ${settings.selectedGssi}' : 'No talkgroup')),
+      'group': call != null ? _groupName(call.gssi) : (selected?.name ?? (settings.selectedGssi != null ? 'TG ${settings.selectedGssi}' : tr('No talkgroup'))),
       'talker': talker,
       'talkerSince': talker == null ? null : since?.millisecondsSinceEpoch,
       'transmitting': transmitting,
@@ -306,7 +307,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     if (!settings.headsetEnabled) return;
     final input = BluetoothHeadsetPtt(address: settings.headsetAddress);
     _pttInput = input;
-    pttDeviceStatus = 'Headset connecting…';
+    pttDeviceStatus = tr('Headset connecting…');
     _pttSub = input.events.listen(_onPttInput);
     await input.start();
     notifyListeners();
@@ -436,7 +437,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         pttUp();
         return;
       case PttVolume(:final level, :final max):
-        if (_headsetVolume != null && _headsetVolume != level) toast = 'Volume $level/$max';
+        if (_headsetVolume != null && _headsetVolume != level) toast = tr('Volume {0}/{1}', [level, max]);
         _headsetVolume = level;
       case PttDeviceStatus(:final connected, :final text):
         // Announce changes, not every retry.
@@ -656,14 +657,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
       case AppEvent_TxDenied(:final reason):
         _clearLatch();
         HapticFeedback.vibrate();
-        toast = 'PTT denied: $reason';
+        toast = tr('PTT denied: {0}', [reason]);
       case AppEvent_TxEnded(:final callId, :final preempted):
         if (myTxCallId == callId) {
           myTxCallId = null;
           _clearLatch();
         }
         _logEnd('tx:$callId');
-        if (preempted) toast = 'Transmission pre-empted by a higher priority call';
+        if (preempted) toast = tr('Transmission pre-empted by a higher priority call');
         _updateMic();
       case AppEvent_PrivateCall(:final call):
         if (!_openLog.containsKey('pc:${call.id}')) {
@@ -694,7 +695,7 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         // Group messages are filed under the group, private ones under the sender.
         final peer = to == settings.issi ? from : to;
         messages.add(ChatMessage(peer: peer, outgoing: false, text: text, status: MsgStatus.received, immediate: immediate));
-        if (immediate) toast = 'Flash message from $from: $text';
+        if (immediate) toast = tr('Flash message from {0}: {1}', [from, text]);
       case AppEvent_MessageStatus(:final localId, :final status):
         final m = messages.where((m) => m.localId == localId).firstOrNull;
         if (m != null) {
@@ -711,8 +712,8 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
         locations[from] = RemoteLocation(from, location, reason);
       case AppEvent_ServerError(:final kind):
         toast = kind == 1
-            ? 'Not allowed by the server (group blocked or receive only)'
-            : 'The server could not read a message from this app';
+            ? tr('Not allowed by the server (group blocked or receive only)')
+            : tr('The server could not read a message from this app');
       case AppEvent_Extensions(:final offered):
         extensions = offered;
         if (!multiNetwork) networks = const [];
@@ -758,9 +759,9 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
     if (!call.incoming) return;
     if (call.state == 'ringing') {
       if (!settings.ringIncoming || callAlert.shown == call.id) return;
-      final name = call.number != null ? (call.peerName ?? 'Phone') : nameOf(call.peer, sentName: call.peerName);
+      final name = call.number != null ? (call.peerName ?? tr('Phone')) : nameOf(call.peer, sentName: call.peerName);
       final sub = call.number ?? (name != 'ISSI ${call.peer}' ? 'ISSI ${call.peer}' : null);
-      unawaited(callAlert.incoming(id: call.id, name: name, sub: sub, emergency: call.priority >= 15, duplex: call.duplex, ringtone: settings.ringtoneUri));
+      unawaited(callAlert.incoming(id: call.id, name: name, sub: sub, labels: [tr(call.priority >= 15 ? 'Emergency call' : 'Incoming call'), tr('Answer'), tr('Decline')], emergency: call.priority >= 15, duplex: call.duplex, ringtone: settings.ringtoneUri));
     } else if (call.state == 'connected') {
       unawaited(callAlert.connected(call.id));
     }
@@ -1000,6 +1001,14 @@ class TerminalModel extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Light, dark or follow the system; applies at once.
+  /// 'system', 'en' or 'de'; every open screen changes at once.
+  Future<void> setLanguage(String v) async {
+    settings.language = v;
+    L.use(v);
+    notifyListeners();
+    await settings.save();
+  }
+
   Future<void> setAppearance(String v) async {
     settings.appearance = v;
     notifyListeners();
@@ -1060,7 +1069,7 @@ List<LinkedNetwork> parseNetworks(String json) {
     final j = jsonDecode(json) as Map<String, dynamic>;
     final own = j['this'] as Map<String, dynamic>?;
     return [
-      if (own != null) LinkedNetwork(own['mcc'] as int? ?? 0, own['mnc'] as int? ?? 0, 'This server', own: true),
+      if (own != null) LinkedNetwork(own['mcc'] as int? ?? 0, own['mnc'] as int? ?? 0, tr('This server'), own: true),
       for (final n in (j['networks'] as List? ?? []).cast<Map<String, dynamic>>())
         LinkedNetwork(n['mcc'] as int? ?? 0, n['mnc'] as int? ?? 0, n['name'] as String? ?? '?', up: n['up'] as bool? ?? false),
     ];

@@ -88,8 +88,12 @@ object CallNotification {
         return PendingIntent.getActivity(ctx, requestCode, i, flags())
     }
 
-    /** Shows the ringing notification; false when the system did not take it. */
-    fun show(ctx: Context, id: String, name: String, sub: String?, emergency: Boolean, ringtone: String?): Boolean {
+    /**
+     * Shows the ringing notification; false when the system did not take it.
+     * The buttons of the system call layout (Android 12+) are labelled by the
+     * system in the device language.
+     */
+    fun show(ctx: Context, id: String, name: String, sub: String?, emergency: Boolean, ringtone: String?, labels: List<String>?): Boolean {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return false
         val channel = ensureChannel(ctx, ringtone)
         val open = openApp(ctx, 1, id, null)
@@ -97,7 +101,11 @@ object CallNotification {
         val decline = PendingIntent.getBroadcast(
             ctx, 3, Intent(ctx, CallActionReceiver::class.java).setAction(ACTION_DECLINE).putExtra(EXTRA_ID, id), flags())
         if (open == null || answer == null) return false
-        val text = listOfNotNull(if (emergency) "Emergency call" else "Incoming call", sub).joinToString(" · ")
+        // Texts in the app's language: headline, Answer, Decline.
+        val headline = labels?.getOrNull(0) ?: if (emergency) "Emergency call" else "Incoming call"
+        val answerLabel = labels?.getOrNull(1) ?: "Answer"
+        val declineLabel = labels?.getOrNull(2) ?: "Decline"
+        val text = listOfNotNull(headline, sub).joinToString(" · ")
 
         fun base(): Notification.Builder {
             @Suppress("DEPRECATION")
@@ -146,8 +154,8 @@ object CallNotification {
         }
         @Suppress("DEPRECATION")
         val n = base()
-            .addAction(Notification.Action.Builder(null, "Decline", decline).build())
-            .addAction(Notification.Action.Builder(null, "Answer", answer).build())
+            .addAction(Notification.Action.Builder(null, declineLabel, decline).build())
+            .addAction(Notification.Action.Builder(null, answerLabel, answer).build())
             .build()
         return post(n)
     }

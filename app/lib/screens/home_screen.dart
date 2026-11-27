@@ -7,7 +7,9 @@ import 'package:poc_ptt/poc_ptt.dart';
 import 'package:provider/provider.dart';
 
 import '../model/terminal_model.dart';
+import '../model/settings.dart';
 import '../ui/adaptive.dart';
+import '../ui/l10n.dart';
 import '../ui/glass.dart';
 import '../ui/theme.dart';
 import 'calls_screen.dart';
@@ -33,7 +35,34 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _askKeyService());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _firstStart());
+  }
+
+  Future<void> _firstStart() async {
+    if (!Settings.firstStartPrompts) return;
+    await _askLanguage();
+    await _askKeyService();
+  }
+
+  /// First start: choose the language. Both languages are on the sheet, as
+  /// the app does not know yet which one the user reads.
+  Future<void> _askLanguage() async {
+    final m = context.read<TerminalModel>();
+    if (m.settings.language != null) return;
+    final picked = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Language · Sprache'),
+        content: const Text('You can change this later under Settings › Display.\n\n'
+            'Das lässt sich später unter Einstellungen › Anzeige ändern.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'en'), child: const Text('English')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'de'), child: const Text('Deutsch')),
+        ],
+      ),
+    );
+    await m.setLanguage(picked ?? 'system');
   }
 
   /// PoC radio, first start: the PTT key and the knob only work with the
@@ -50,12 +79,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final open = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Keys in the background'),
-        content: const Text('So that the PTT key and the knob also work with the screen locked or the app in the background, '
+        title: const Tx('Keys in the background'),
+        content: const Tx('So that the PTT key and the knob also work with the screen locked or the app in the background, '
             'switch on "TETRA Terminal PTT key" in the Accessibility settings. Android only lets you do this yourself.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Later')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Open settings')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Tx('Later')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Tx('Open settings')),
         ],
       ),
     );
@@ -115,15 +144,27 @@ class _HomeScreenState extends State<HomeScreen> {
               badges: {if (unread) 3},
               items: [for (final (i, it) in items.indexed) (it.$1, filled[i], it.$2)],
             )
-          : NavigationBar(
-              // Lower than the Material default (80), lower still on small screens.
-              height: MediaQuery.sizeOf(context).height < TabPage.compactHeight ? 54 : 64,
-              selectedIndex: tab,
-              onDestinationSelected: select,
-              destinations: [
-                for (final (i, it) in items.indexed)
-                  NavigationDestination(icon: Badge(isLabelVisible: i == 3 && unread, smallSize: 8, child: Icon(it.$1)), label: it.$2),
-              ],
+          : NavigationBarTheme(
+              // Labels on one line: the font follows the width of a tab, so the
+              // longer words of other languages fit on a small radio screen too.
+              data: NavigationBarThemeData(
+                labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+                      fontSize: (MediaQuery.sizeOf(context).width / 5 / 6.6).clamp(9.0, 12.0),
+                      letterSpacing: 0,
+                      overflow: TextOverflow.clip,
+                      fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+                    )),
+              ),
+              child: NavigationBar(
+                // Lower than the Material default (80), lower still on small screens.
+                height: MediaQuery.sizeOf(context).height < TabPage.compactHeight ? 54 : 64,
+                selectedIndex: tab,
+                onDestinationSelected: select,
+                destinations: [
+                  for (final (i, it) in items.indexed)
+                    NavigationDestination(icon: Badge(isLabelVisible: i == 3 && unread, smallSize: 8, child: Icon(it.$1)), label: tr(it.$2)),
+                ],
+              ),
             ),
     );
   }
@@ -137,14 +178,14 @@ class LinkPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = context.watch<TerminalModel>();
     final (label, color) = switch (m.link) {
-      LinkState.online => ('Online', Tokens.online),
-      LinkState.connecting => ('Connecting', Tokens.connecting),
-      LinkState.offline => ('Offline', Theme.of(context).colorScheme.outline),
+      LinkState.online => (tr('Online'), Tokens.online),
+      LinkState.connecting => (tr('Connecting'), Tokens.connecting),
+      LinkState.offline => (tr('Offline'), Theme.of(context).colorScheme.outline),
     };
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
-      label: '$label. ${m.link == LinkState.offline ? 'Tap to connect' : 'Tap to disconnect'}',
+      label: '$label. ${tr(m.link == LinkState.offline ? 'Tap to connect' : 'Tap to disconnect')}',
       child: GestureDetector(
         onTap: () async {
           if (m.link != LinkState.offline) {
@@ -154,7 +195,7 @@ class LinkPill extends StatelessWidget {
             ]);
             if (go == true) await m.goOffline();
           } else if (!m.settings.isConfigured) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fill in server, username and ISSI in Settings first')));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Tx('Fill in server, username and ISSI in Settings first')));
           } else {
             await m.connect();
           }
@@ -227,15 +268,15 @@ class NowCard extends StatelessWidget {
     final emergency = heard?.emergency == true;
 
     final (Color bg, Color fg, String status, DateTime? since, IconData icon) = switch (()) {
-      _ when m.transmitting => (Tokens.talk, Colors.white, 'You are talking', m.myTxSince, CupertinoIcons.mic_fill),
+      _ when m.transmitting => (Tokens.talk, Colors.white, tr('You are talking'), m.myTxSince, CupertinoIcons.mic_fill),
       _ when heard != null => (
           emergency ? Tokens.emergency : scheme.primary,
           Colors.white,
-          '${emergency ? 'EMERGENCY · ' : ''}${m.nameOf(heard.talker, sentName: heard.talkerName)}${m.nameOf(heard.talker, sentName: heard.talkerName) != 'ISSI ${heard.talker}' ? ' · ${heard.talker}' : ''}',
+          '${emergency ? '${tr('EMERGENCY')} · ' : ''}${m.nameOf(heard.talker, sentName: heard.talkerName)}${m.nameOf(heard.talker, sentName: heard.talkerName) != 'ISSI ${heard.talker}' ? ' · ${heard.talker}' : ''}',
           heard.since,
           CupertinoIcons.waveform,
         ),
-      _ => (scheme.surfaceContainerLow, scheme.onSurface, m.link == LinkState.online ? 'Channel free' : 'Not connected', null, CupertinoIcons.circle),
+      _ => (scheme.surfaceContainerLow, scheme.onSurface, tr(m.link == LinkState.online ? 'Channel free' : 'Not connected'), null, CupertinoIcons.circle),
     };
     final compact = MediaQuery.sizeOf(context).height < TabPage.compactHeight;
 
@@ -251,7 +292,7 @@ class NowCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: Text(
-                tg?.name ?? (active != null ? 'TG $active' : 'No talkgroup selected'),
+                tg?.name ?? (active != null ? 'TG $active' : tr('No talkgroup selected')),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.headlineSmall?.copyWith(color: fg, fontWeight: FontWeight.w700, letterSpacing: -.3),
@@ -264,7 +305,7 @@ class NowCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(color: fg.withValues(alpha: m.settings.scanMode ? .16 : .08), borderRadius: BorderRadius.circular(11)),
-                child: Text(m.settings.scanMode ? 'Scan · ${m.settings.talkgroups.where((t) => t.scan).length}' : 'Scan off',
+                child: Text(m.settings.scanMode ? 'Scan · ${m.settings.talkgroups.where((t) => t.scan).length}' : tr('Scan off'),
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg.withValues(alpha: m.settings.scanMode ? 1 : .7))),
               ),
               const SizedBox(width: 6),
@@ -274,7 +315,7 @@ class NowCard extends StatelessWidget {
           if (scanned)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text('Scan · selected: ${selected?.name ?? 'TG ${m.selectedGssi}'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: text.bodySmall?.copyWith(color: fg.withValues(alpha: .75))),
+              child: Text(tr('Scan · selected: {0}', [selected?.name ?? 'TG ${m.selectedGssi}']), maxLines: 1, overflow: TextOverflow.ellipsis, style: text.bodySmall?.copyWith(color: fg.withValues(alpha: .75))),
             ),
           if (tg != null && tg.otherNetwork)
             Padding(
@@ -287,7 +328,7 @@ class NowCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                heard != null && heard.gssi != active ? '$status on ${m.settings.talkgroups.where((t) => t.gssi == heard.gssi).firstOrNull?.name ?? 'TG ${heard.gssi}'}' : status,
+                heard != null && heard.gssi != active ? tr('{0} on {1}', [status, m.settings.talkgroups.where((t) => t.gssi == heard.gssi).firstOrNull?.name ?? 'TG ${heard.gssi}']) : status,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: text.titleMedium?.copyWith(color: fg, fontWeight: FontWeight.w600),
@@ -347,8 +388,8 @@ class _PttButtonState extends State<PttButton> {
       Semantics(
         button: true,
         label: toggle
-            ? (tx || m.pttLatched ? 'Talking. Tap to stop' : 'Push to talk. Tap to start talking')
-            : (tx ? 'Talking. Release to stop' : 'Push to talk. Hold to talk'),
+            ? tr(tx || m.pttLatched ? 'Talking. Tap to stop' : 'Push to talk. Tap to start talking')
+            : tr(tx ? 'Talking. Release to stop' : 'Push to talk. Hold to talk'),
         enabled: enabled,
         child: Listener(
           onPointerDown: enabled
@@ -385,7 +426,7 @@ class _PttButtonState extends State<PttButton> {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(tx ? CupertinoIcons.mic_fill : (listenOnly ? CupertinoIcons.speaker_2 : CupertinoIcons.mic), size: small ? 30 : 38, color: enabled ? Colors.white : scheme.outline),
                 const SizedBox(height: 4),
-                Text(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT'),
+                Text(tr(tx ? 'TALK' : (listenOnly ? 'LISTEN' : 'PTT')),
                     style: TextStyle(fontSize: small ? 15 : 17, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: enabled ? Colors.white : scheme.outline)),
               ]),
             ),
@@ -418,9 +459,9 @@ class SpeakerButton extends StatelessWidget {
     return Semantics(
       button: true,
       toggled: on,
-      label: on ? 'Loudspeaker on. Tap for earpiece' : 'Earpiece. Tap for loudspeaker',
+      label: tr(on ? 'Loudspeaker on. Tap for earpiece' : 'Earpiece. Tap for loudspeaker'),
       child: Tooltip(
-        message: on ? 'Loudspeaker' : 'Earpiece',
+        message: tr(on ? 'Loudspeaker' : 'Earpiece'),
         child: GestureDetector(
           onTap: () {
             Haptics.select();
@@ -437,7 +478,7 @@ class SpeakerButton extends StatelessWidget {
             ),
             if (!slim) ...[
               const SizedBox(height: 4),
-              Text(on ? 'Speaker' : 'Earpiece', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+              Text(tr(on ? 'Speaker' : 'Earpiece'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
             ],
           ]),
         ),
@@ -456,7 +497,7 @@ class _SosButton extends StatelessWidget {
     final m = context.read<TerminalModel>();
     return Semantics(
       button: true,
-      label: 'Emergency. Long press to talk with emergency priority',
+      label: tr('Emergency. Long press to talk with emergency priority'),
       child: GestureDetector(
         onLongPressStart: enabled
             ? (_) {
@@ -466,14 +507,14 @@ class _SosButton extends StatelessWidget {
             : null,
         onLongPressEnd: enabled ? (_) => m.pttUp() : null,
         onTap: enabled
-            ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hold the SOS button to talk with emergency priority')))
+            ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Tx('Hold the SOS button to talk with emergency priority')))
             : null,
         child: Container(
           width: size,
           height: size,
           decoration: BoxDecoration(shape: BoxShape.circle, color: enabled ? Tokens.emergency : Theme.of(context).colorScheme.surfaceContainerHigh, boxShadow: _floatShadow),
           alignment: Alignment.center,
-          child: Text('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size < 56 ? 12 : 15, letterSpacing: .5)),
+          child: Tx('SOS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size < 56 ? 12 : 15, letterSpacing: .5)),
         ),
       ),
     );
@@ -517,7 +558,7 @@ class TabPage extends StatelessWidget {
           titleSpacing: Tokens.gutter,
           backgroundColor: apple ? scheme.surface.withValues(alpha: .9) : null,
           title: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 24, fontWeight: apple ? FontWeight.w700 : FontWeight.w500, height: 1.15)),
+            Text(tr(title), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 24, fontWeight: apple ? FontWeight.w700 : FontWeight.w500, height: 1.15)),
             if (subtitle!.isNotEmpty)
               Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: scheme.onSurfaceVariant, height: 1.2)),
           ]),
@@ -525,7 +566,7 @@ class TabPage extends StatelessWidget {
         )
       else if (apple)
         CupertinoSliverNavigationBar(
-          largeTitle: Text(title),
+          largeTitle: Text(tr(title)),
           backgroundColor: scheme.surface.withValues(alpha: .9),
           border: null,
           trailing: actions.isEmpty ? null : Row(mainAxisSize: MainAxisSize.min, children: actions),
@@ -533,9 +574,9 @@ class TabPage extends StatelessWidget {
       else
         // A small screen (PoC radios) has no room for the large title: one pinned row.
         if (compact)
-          SliverAppBar(pinned: true, toolbarHeight: 52, title: Text(title), actions: [...actions, const SizedBox(width: 8)])
+          SliverAppBar(pinned: true, toolbarHeight: 52, title: Text(tr(title)), actions: [...actions, const SizedBox(width: 8)])
         else
-          SliverAppBar.large(title: Text(title), actions: [...actions, const SizedBox(width: 8)]),
+          SliverAppBar.large(title: Text(tr(title)), actions: [...actions, const SizedBox(width: 8)]),
       ...slivers,
       SliverToBoxAdapter(child: SizedBox(height: 16 + barInset + (bottom != null ? bottomHeight : 0))),
     ]);
