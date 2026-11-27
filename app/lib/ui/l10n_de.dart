@@ -345,8 +345,8 @@ const german = <String, String>{
       'verbindet',
   'Creator':
       'Entwickler',
-  'Redesign & advanced features':
-      'Redesign & erweiterte Funktionen',
+  'Developers':
+      'Entwickler',
   'Server offers: {0}':
       'Server bietet: {0}',
   'Control channel: {0}':

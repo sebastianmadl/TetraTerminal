@@ -135,9 +135,9 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text('TETRA Terminal v$appVersion · © 2026', style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
-                  const Credit(role: 'Creator', name: 'ysamouhos', github: 'ysamouhos'),
-                  const SizedBox(height: 10),
-                  const Credit(role: 'Redesign & advanced features', name: 'sebastianmadl (OE4SXM)', github: 'sebastianmadl'),
+                  const Credit(role: 'Developers', name: 'ysamouhos', github: 'ysamouhos'),
+                  const SizedBox(height: 8),
+                  const Credit(name: 'sebastianmadl (OE4SXM)', github: 'sebastianmadl'),
                   const SizedBox(height: 6),
                   if (m.extensions.isNotEmpty) Text(tr('Server offers: {0}', [m.extensions.join(', ')]), style: const TextStyle(fontSize: 11)),
                   if (s.basestation && m.link != LinkState.offline)
@@ -727,8 +727,10 @@ class _HardwareSettingsState extends State<HardwareSettings> {
 /// Role, name and the GitHub profile link below. The link keeps the text colour
 /// (black in light, white in dark mode) and is only underlined.
 class Credit extends StatelessWidget {
-  const Credit({super.key, required this.role, required this.name, required this.github});
-  final String role;
+  const Credit({super.key, this.role, required this.name, required this.github});
+
+  /// Heading above the name; left out for a further name under the same heading.
+  final String? role;
   final String name;
   final String github;
 
@@ -737,7 +739,7 @@ class Credit extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final url = 'https://github.com/$github';
     return Column(children: [
-      Text(tr(role).toUpperCase(), style: TextStyle(color: scheme.outline, fontSize: 10.5, letterSpacing: .6, fontWeight: FontWeight.w600)),
+      if (role != null) Text(tr(role!).toUpperCase(), style: TextStyle(color: scheme.outline, fontSize: 10.5, letterSpacing: .6, fontWeight: FontWeight.w600)),
       Text(name, style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
       Semantics(
         link: true,
